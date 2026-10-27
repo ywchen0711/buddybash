@@ -1,0 +1,27 @@
+# 出氣布偶 Buddy Bash
+
+類似 Kick the Buddy 的紓壓小遊戲：房間裡有一個布偶，挑一樣道具點他，他會被打飛、被番茄砸、被凍住、被火箭載上天花板……每一下都有金幣，金幣可以買更厲害的道具和帽子。卡通風格，沒有血腥。中文和英文都有。
+
+A stress-relief toy in the spirit of Kick the Buddy: a rag doll in a room and twenty tools to try on him. Every bump earns coins for more tools and hats. Cartoon only, no gore. Chinese and English.
+
+**線上玩：** https://ywchen0711.github.io/buddybash/
+
+## 道具
+
+| 價錢 | 道具 |
+|---|---|
+| 一開始就有 | ✋ 手（抓起來丟）、🥊 拳擊手套、🍅 番茄 |
+| 40～380 | 🖐️ 巴掌、🥚 雞蛋、🏏 球棒、🦆 橡皮鴨雨、🔨 鎚子、🎈 水球、🥧 奶油派 |
+| 480～1250 | 🎳 保齡球、🪶 羽毛搔癢、🧨 鞭炮、鐵砧、⚡ 閃電、🧊 冰凍光線 |
+| 1500～3500 | 💣 炸彈、🚀 火箭、🌙 低重力、🕳️ 黑洞 |
+
+裝扮：派對帽、蝴蝶結、棒球帽、墨鏡、八字鬍、牛仔帽、巫師帽、皇冠，還有八種衣服顏色。
+
+被打倒後，他在地上躺一下就會自己站起來；也可以按「扶他起來」。被砸髒了按「洗乾淨」。
+
+## 做法
+
+- `js/main.js`：Verlet 物理的布偶（14 個點、棍子相連，加上讓手腳不會折平的限制），站著時有一個姿勢彈簧，被打到一定力道就倒下；房間裡的物品、爆炸、黑洞、火箭；畫圖和介面
+- `js/items.js`：道具、帽子、中英文台詞
+- `js/sfx.js`：用 Web Audio 合成的音效
+- 存檔在瀏覽器（也會同步到網站的雲端存檔）

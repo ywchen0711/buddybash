@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <title>出氣布偶</title>
+  <meta name="description" content="出氣布偶 Buddy Bash：用拳擊手套、番茄、鎚子、橡皮鴨、鞭炮、閃電、火箭和黑洞對付房間裡的布偶，賺金幣買新道具和帽子。">
+  <meta name="theme-color" content="#7a4c28">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E🥊%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@500;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css?v=1">
+</head>
+<body>
+  <div id="app">
+    <header class="top">
+      <div class="coins" id="coinsLbl">🪙 <b id="coins">0</b></div>
+      <button id="shopBtn"></button><button id="standBtn"></button><button id="cleanBtn"></button>
+      <span class="sp"></span><button id="langBtn"></button><button id="muteBtn"></button>
+    </header>
+    <div id="stage"><canvas id="cv"></canvas><div id="hint"></div><div id="toast"></div></div>
+    <nav id="tools"></nav>
+  </div>
+  <dialog id="dlg"><button class="x" id="dlgX">✕</button><div id="dlgBody"></div></dialog>
+  <script src="/hub.js" defer data-pos="top-right"></script>
+  <script type="module" src="js/main.js?v=1"></script>
+</body>
+</html>
