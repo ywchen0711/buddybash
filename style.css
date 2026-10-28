@@ -40,3 +40,5 @@ dialog h2 { margin: 0 0 10px; } .cn { color: #c8901a; margin-left: 8px; }
 .sw { width: 40px; height: 40px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 2px #ccc; }
 .sw.on { box-shadow: 0 0 0 3px #2a1a0a; }
 @media (max-width: 560px) { .top button span { display: none; } .top button { padding: 6px 9px; font-size: 18px; } #shopBtn span { display: inline; font-size: 14px; } }
+.have { margin: 0 0 8px; font-size: 13px; color: #a06a3a; font-weight: 700; }
+.tool.more { background: #ffe9a8; }

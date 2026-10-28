@@ -1,7 +1,7 @@
 // 出氣布偶 / Buddy Bash: a rag doll in a room and a box of things to do to him. Verlet physics (points and sticks),
 // a little spring that keeps him standing until he is knocked over, and coins for every bump that buy more tools.
-import { TOOLS, HATS, SHIRTS, WORDS } from './items.js';
-import { sfx, setMute, muted } from './sfx.js';
+import { TOOLS, HATS, SHIRTS, WORDS, SHELF } from './items.js?v=3';
+import { sfx, setMute, muted } from './sfx.js?v=3';
 
 const $ = (s) => document.querySelector(s);
 const cv = $('#cv'), g = cv.getContext('2d');
@@ -67,9 +67,12 @@ function standUp(instant) {
 }
 
 // ---------------------------------------------------------------- the world
-const objs = [], fx = [], texts = [], rockets = [], holes = [], bolts = [], acts = [];
+const objs = [], fx = [], texts = [], rockets = [], holes = [], bolts = [], acts = [], winds = [], swarms = [];
 // how long each blow takes, and when it lands (seconds)
 const ACT = { punch: [0.36, 0.11], slap: [0.34, 0.14], bat: [0.42, 0.17], hammer: [0.55, 0.36] };
+// and the same for the rest, by the way they are swung
+const STYLE = { jab: [0.36, 0.12], poke: [0.3, 0.1], swing: [0.42, 0.17], smash: [0.55, 0.36], slap: [0.34, 0.14] };
+const FIRE = ['#ffb02e', '#ff6a2a', '#ffe14a', '#ff3a1a'];
 let GRAV = 0.55, lowGrav = false, shake = 0, grab = null, pointer = null, tool = 'hand', idle = 0, tickleT = 0, coinPile = 0, coinT = 0;
 const grav = () => GRAV * (lowGrav ? 0.18 : 1);
 
@@ -111,8 +114,10 @@ function step() {
     const k = 0.09 * b.stand * b.stand;
     b.p.forEach((p, i) => { const tx = b.anchor + POSE[i][0], ty = FLOOR + POSE[i][1] + Math.sin(performance.now() / 600 + i) * 0.6; p.x += (tx - p.x) * k; p.y += (ty - p.y) * k; p.px += (p.x - p.px) * k * 0.6; p.py += (p.y - p.py) * k * 0.6; });
   }
-  for (const r of rockets) { const p = b.p[r.i]; p.y -= 1.35 + gr; p.x += Math.sin(r.t * 9) * 0.9 + r.side * 0.25; b.stand = 0; r.t -= 1 / 60; for (let k = 0; k < 2; k++) fx.push({ x: p.x - r.side * 4, y: p.y + 16, vx: rnd(-1, 1), vy: rnd(2, 5), life: 0.5, max: 0.5, c: pickOf(['#ffb02e', '#ff6a2a', '#ffe14a', '#999']), s: rnd(6, 12) }); }
-  for (const h of holes) for (const p of [...b.p, ...objs]) { const dx = h.x - p.x, dy = h.y - p.y, d = Math.hypot(dx, dy); if (d < 420 && d > 4) { const f = 1.1 * (1 - d / 420); p.x += dx / d * f; p.y += dy / d * f - (p.inv ? gr * 0.9 : 0); b.stand = 0; } }
+  for (const r of rockets) { const p = b.p[r.i]; p.y -= (r.T.lift ?? 1.35) + gr; p.x += Math.sin(r.t * 9) * 0.9 + r.side * 0.25; b.stand = 0; r.t -= 1 / 60; for (let k = 0; k < 2; k++) fx.push({ x: p.x - r.side * 4, y: p.y + 16, vx: rnd(-1, 1), vy: rnd(2, 5), life: 0.5, max: 0.5, c: pickOf(r.T.trail || ['#ffb02e', '#ff6a2a', '#ffe14a', '#999']), s: rnd(6, 12) }); }
+  for (const h of holes) { const R = h.T.R || 420, pull = h.T.pull || 1.1, lift = h.T.lift || 0; for (const p of [...b.p, ...objs]) { const dx = h.x - p.x, dy = h.y - p.y, d = Math.hypot(dx, dy); if (d < R && d > 4) { const f = pull * (1 - d / R); p.x += dx / d * f - (lift ? dy / d * f * 0.8 : 0); p.y += dy / d * f - (p.inv ? gr * 0.9 : 0) - lift * f; b.stand = 0; } } }
+  // the wind pushes him (and everything loose) across the room
+  for (const w of winds) { const f = w.T.f * Math.min(1, w.age / 0.2, w.t / 0.3); for (const p of b.p) p.x += w.dir * f * (0.7 + 0.6 * (p.y < FLOOR - 100)); for (const o of objs) o.x += w.dir * f * 1.4 / Math.sqrt(o.m); if (w.T.f >= 1 && w.age > 0.15) b.stand = 0; else b.stand = Math.max(0.3, b.stand - 0.01); }
   if (grab?.doll != null) { const p = b.p[grab.doll]; p.x = pointer.x; p.y = pointer.y; b.stand = 0; b.rise = 0; }
   // the sticks, several times over
   for (let it = 0; it < 8; it++) {
@@ -140,14 +145,14 @@ function step() {
     if (o.y > FLOOR - o.r) { const hit = vy; o.y = FLOOR - o.r; o.py = o.y + vy * 0.35; o.px = o.x - vx * 0.85; if (hit > 5 && o.T.splat) splatFloor(o); else if (hit > 6 && o.T.snd) sfx(o.T.snd, hit / 20); }
     if (o.x < o.r + 10) { o.x = o.r + 10; o.px = o.x + vx * 0.5; } if (o.x > W - o.r - 10) { o.x = W - o.r - 10; o.px = o.x + vx * 0.5; }
     if (o.y < o.r) { o.y = o.r; o.py = o.y + vy * 0.5; }
-    if (o.fuse != null) { o.fuse -= 1 / 60; if (Math.random() < 0.5) fx.push({ x: o.x + o.r * 0.6, y: o.y - o.r, vx: rnd(-1.5, 1.5), vy: rnd(-3, -1), life: 0.3, max: 0.3, c: '#ffd24a', s: 3 }); if (o.fuse <= 0) { o.dead = true; boom(o.x, o.y, o.T.blast, o.T.force); } }
+    if (o.fuse != null) { o.fuse -= 1 / 60; if (Math.random() < 0.5) fx.push({ x: o.x + o.r * 0.6, y: o.y - o.r, vx: rnd(-1.5, 1.5), vy: rnd(-3, -1), life: 0.3, max: 0.3, c: '#ffd24a', s: 3 }); if (o.fuse <= 0) { o.dead = true; boom(o.x, o.y, o.T.blast, o.T.force, o.T.pal); } }
   }
   for (let i = 0; i < objs.length; i++) for (let j = i + 1; j < objs.length; j++) bump(objs[i], objs[j], false);
   for (const o of objs) if (!o.dead) for (let i = 0; i < b.p.length; i++) { if (bump(o, b.p[i], true, i)) break; }
   for (let i = objs.length - 1; i >= 0; i--) if (objs[i].dead) objs.splice(i, 1);
   // has he been lying still long enough to get back up?
   const motion = b.p.reduce((s, p) => s + Math.abs(p.x - p.px) + Math.abs(p.y - p.py), 0);
-  if (b.stand < 1 && !b.rise && !grab && b.frozen <= 0 && !rockets.length && !holes.length) { b.still = motion < 6 ? b.still + 1 / 60 : 0; if (b.still > 1.6) { standUp(false); b.still = 0; } }
+  if (b.stand < 1 && !b.rise && !grab && b.frozen <= 0 && !rockets.length && !holes.length && !winds.length) { b.still = motion < 6 ? b.still + 1 / 60 : 0; if (b.still > 1.6) { standUp(false); b.still = 0; } }
 }
 function stick(P, Q, len, k) {
   const dx = Q.x - P.x, dy = Q.y - P.y, d = Math.hypot(dx, dy) || 0.001, f = (d - len) / d * k, w = P.inv + Q.inv;
@@ -180,14 +185,14 @@ function splat(o, i) {
 }
 function splatFloor(o) { o.dead = true; for (let k = 0; k < 8; k++) fx.push({ x: o.x, y: o.y, vx: rnd(-4, 4), vy: rnd(-4, -1), life: 0.6, max: 0.6, c: o.T.splat, s: rnd(3, 6), fall: true }); fx.push({ x: o.x, y: FLOOR + 3, vx: 0, vy: 0, life: 4, max: 4, c: o.T.splat, s: o.r * 1.4, puddle: true }); sfx('splat', 0.6); }
 const blob = () => Array.from({ length: 9 }, () => rnd(0.7, 1.25));
-function boom(x, y, R, F) {
+function boom(x, y, R, F, pal) {
   const b = doll;
   sfx('boom', R / 250); shake = Math.min(26, R / 10);
   for (const p of b.p) { const dx = p.x - x, dy = p.y - y - 20, d = Math.hypot(dx, dy) || 1; if (d < R) { const f = F * (1 - d / R); p.px -= dx / d * f; p.py -= dy / d * f + f * 0.3; } }
   let near = Math.min(...b.p.map((p) => Math.hypot(p.x - x, p.y - y)));
   if (near < R) { hurt(HEAD, F * (1 - near / R) * 1.6, 'boom'); b.soot = Math.min(1, b.soot + (1 - near / R) * 0.9); b.stand = 0; }
   for (const o of objs) { const dx = o.x - x, dy = o.y - y, d = Math.hypot(dx, dy) || 1; if (d < R && o.fuse == null) { const f = F * 0.8 * (1 - d / R) / Math.sqrt(o.m); o.px -= dx / d * f; o.py -= dy / d * f; } }
-  for (let k = 0; k < R / 6; k++) { const a = rnd(0, 7), s = rnd(2, 10) * R / 200; fx.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rnd(0.4, 0.9), max: 0.9, c: pickOf(['#ffe14a', '#ff8a2a', '#ff4a2a']), s: rnd(5, 12) }); }
+  for (let k = 0; k < R / 6; k++) { const a = rnd(0, 7), s = rnd(2, 10) * R / 200; fx.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: rnd(0.4, 0.9), max: 0.9, c: pickOf(pal || ['#ffe14a', '#ff8a2a', '#ff4a2a']), s: rnd(5, 12) }); }
   for (let k = 0; k < R / 12; k++) fx.push({ x: x + rnd(-R / 4, R / 4), y: y + rnd(-R / 4, R / 6), vx: rnd(-1, 1), vy: rnd(-2, -0.5), life: rnd(1, 1.8), max: 1.8, c: '#6a6a6a', s: rnd(14, 30), smoke: true });
   fx.push({ x, y, life: 0.25, max: 0.25, flash: R });
   addText(x, y - 30, 'BOOM!', '#ff6a2a', true);
@@ -212,7 +217,7 @@ function use(x, y) {
   if (t.kind === 'hit') {
     // it comes in from the side away from him, so it pushes him the other way
     const cx = (b.p[8].x + b.p[9].x) / 2, side = x < cx ? -1 : 1;
-    acts.push({ k: t.id, T: t, x, y, side, t: 0, dur: ACT[t.id][0], at: ACT[t.id][1], hit: false }); sfx('whoosh');
+    const [dur, at] = ACT[t.id] || STYLE[t.style] || STYLE.jab; acts.push({ k: t.id, T: t, x, y, side, t: 0, dur, at, hit: false }); sfx('whoosh');
     return;
   }
   if (t.kind === 'throw') {
@@ -227,26 +232,46 @@ function use(x, y) {
   if (t.kind === 'rocket') {
     const i = nearest(x, y, 60); if (i < 0) return;
     const side = Math.random() < 0.5 ? -1 : 1;
-    acts.push({ k: 'rocketIn', x: side < 0 ? -40 : W + 40, y: y - 140, side, i, t: 0, dur: 0.4, at: 0.4, hit: false, go: () => { rockets.push({ i, t: 2.4, side }); sfx('rocket'); say('fly', true); setFace('scared', 2.4); } });
+    acts.push({ k: 'rocketIn', icon: t.icon, x: side < 0 ? -40 : W + 40, y: y - 140, side, i, t: 0, dur: 0.4, at: 0.4, hit: false, go: () => { rockets.push({ i, t: t.dur || 2.4, side, T: t }); sfx(t.id === 'heli' || t.id === 'ufo' ? 'wind' : 'rocket'); say('fly', true); setFace('scared', 2.4); } });
     setFace('scared', 0.6); sfx('whoosh');
     return;
   }
   if (t.kind === 'zap') {
     acts.push({ k: 'cloud', x, y, t: 0, dur: 0.7, at: 0.28, hit: false, go: () => {
-      bolts.push({ x, y, life: 0.35, pts: boltPath(x, y) }); sfx('zap'); fx.push({ x, y, life: 0.15, max: 0.15, flash: 120 });
+      for (let n = 0; n < (t.n || 1); n++) bolts.push({ x, y, life: 0.35 + n * 0.06, c: t.c === 'rainbow' ? pickOf(['#ff4a4a', '#ffb02e', '#ffe14a', '#5ad04a', '#3a9aff', '#b06aff']) : t.c, pts: boltPath(x + (n ? rnd(-30, 30) : 0), y) }); sfx('zap'); fx.push({ x, y, life: 0.15, max: 0.15, flash: 120 });
       const i = nearest(x, y, 90);
-      if (i >= 0) { b.shock = 1.3; b.stand = 0; setFace('shock', 1.4); say('zap', true); hurt(i, 14); b.soot = Math.min(1, b.soot + 0.25); }
+      if (i >= 0) { b.shock = 1.3; b.stand = 0; setFace('shock', 1.4); say('zap', true); hurt(i, t.dmg ?? 14); b.soot = Math.min(1, b.soot + 0.25); }
     } });
     return;
   }
   if (t.kind === 'freeze') {
     const gx = Math.max(50, Math.min(W - 50, x + (x < W / 2 ? 160 : -160)));
-    acts.push({ k: 'beam', x, y, gx, gy: H - 26, t: 0, dur: 0.55, at: 0.25, hit: false, go: () => {
+    acts.push({ k: 'beam', c: t.c || '#bfe8ff', x, y, gx, gy: H - 26, t: 0, dur: 0.55, at: 0.25, hit: false, go: () => {
       const i = nearest(x, y, 80);
       for (let k = 0; k < 12; k++) fx.push({ x: rnd(x - 30, x + 30), y: rnd(y - 30, y + 30), vx: rnd(-1, 1), vy: rnd(-1, 1), life: 0.6, max: 0.6, c: '#bfe8ff', s: rnd(3, 6) });
-      if (i >= 0 && b.frozen <= 0) { b.frozen = 5; b.stand = 0; b.rise = 0; b.frozenD = b.p.map((p) => b.p.map((q) => Math.hypot(p.x - q.x, p.y - q.y))); setFace('frozen', 5); say('ice', true); sfx('freeze'); }
+      if (i >= 0 && b.frozen <= 0) { b.frozen = t.dur || 5; b.stand = 0; b.rise = 0; b.frozenD = b.p.map((p) => b.p.map((q) => Math.hypot(p.x - q.x, p.y - q.y))); setFace('frozen', t.dur || 5); say('ice', true); sfx('freeze'); }
     } });
     sfx('tick');
+    return;
+  }
+  if (t.kind === 'wind') { // from the side you tap, across the room
+    const cx = (b.p[8].x + b.p[9].x) / 2; winds.push({ T: t, dir: x < cx ? 1 : -1, y, t: t.dur, age: 0 }); sfx('wind'); setFace('scared', t.dur);
+    if (t.word) addText(x, y - 30, t.word, '#ffe14a', true); say(t.stink ? 'stink' : 'wind', true);
+    return;
+  }
+  if (t.kind === 'launch') { // it comes up out of the floor under him
+    acts.push({ k: 'launch', L: t, x, t: 0, dur: 1.1, at: 0.35, hit: false, go: () => {
+      let low = -1; b.p.forEach((p, i) => { const k = 1 - Math.abs(p.x - x) / 170; if (k > 0) { p.py = p.y + t.up * (0.6 + 0.4 * k); p.px = p.x + rnd(-1, 1); low = low < 0 || p.y > b.p[low].y ? i : low; } });
+      sfx(t.snd || 'whoosh'); shake = 8;
+      if (low >= 0) { b.stand = 0; b.rise = 0; hurt(low, t.up * 0.45); say('fly', true); setFace('scared', 1.5); if (t.wet) b.wet = 1; if (t.soot) b.soot = Math.min(1, b.soot + 0.5); }
+      for (let k = 0; k < 30; k++) fx.push({ x: x + rnd(-24, 24), y: FLOOR - 10, vx: rnd(-1.5, 1.5), vy: rnd(-16, -6), life: rnd(0.6, 1.2), max: 1.2, c: t.c === 'fire' ? pickOf(FIRE) : t.c, s: rnd(5, 11), fall: true });
+    } }); sfx('tick');
+    return;
+  }
+  if (t.kind === 'swarm') { // little things that fly in and nip him (or tickle him)
+    if (swarms.length > 2) swarms.shift();
+    const from = x < W / 2 ? -30 : W + 30;
+    swarms.push({ T: t, t: t.dur, bugs: Array.from({ length: t.n }, () => ({ x: from, y: rnd(80, FLOOR - 80), vx: 0, vy: 0, ti: Math.floor(rnd(0, 14)), cd: rnd(0.6, 1.4) })) }); sfx(t.snd || 'buzz'); setFace('scared', 1);
     return;
   }
   return;
@@ -274,13 +299,13 @@ function use2(t, x, y) {
   const b = doll;
   if (t.kind === 'drop') {
     const n = t.many || 1;
-    for (let k = 0; k < n; k++) { const ox = n > 1 ? rnd(-160, 160) : 0, oy = n > 1 ? -k * 40 : 0; objs.push({ x: x + ox, y: 30 + oy, px: x + ox, py: 30 + oy - (t.anvil ? 4 : 1), r: t.r, m: t.m, T: t, a: t.anvil ? 0 : rnd(-0.3, 0.3), spin: n > 1 ? rnd(-0.1, 0.1) : 0, light: t.id === 'duck' }); }
-    if (t.anvil) addText(x, 80, '!!!', '#e0342a', true);
+    for (let k = 0; k < n; k++) { const ox = n > 1 ? rnd(-160, 160) : 0, oy = n > 1 ? -k * 40 : 0; objs.push({ x: x + ox, y: 30 + oy, px: x + ox, py: 30 + oy - (t.anvil ? 4 : 1), r: t.r, m: t.m, T: t, a: t.anvil ? 0 : rnd(-0.3, 0.3), spin: n > 1 ? rnd(-0.1, 0.1) : 0, light: t.light || t.id === 'duck' }); }
+    if (t.anvil || t.m >= 10) addText(x, 80, '!!!', '#e0342a', true);
   } else if (t.kind === 'bomb') {
     objs.push({ x, y: Math.min(y, FLOOR - 40), px: x, py: Math.min(y, FLOOR - 40), r: t.r, m: t.m, T: t, fuse: t.fuse, a: 0, spin: 0 }); sfx('hiss');
     if (Math.min(...b.p.map((p) => Math.hypot(p.x - x, p.y - y))) < 250) { setFace('scared', t.fuse); say('boom'); }
   } else if (t.kind === 'hole') {
-    if (holes.length) return; holes.push({ x, y: Math.min(y, FLOOR - 60), t: 4, age: 0 }); sfx('hole'); setFace('scared', 4); say('fly', true);
+    if (holes.length) return; holes.push({ x, y: Math.min(y, FLOOR - 60), t: t.dur || 4, age: 0, T: t }); sfx(t.id === 'tornado' || t.id === 'cyclone' ? 'wind' : 'hole'); setFace('scared', 4); say('fly', true);
   } else if (t.kind === 'gravity') {
     lowGrav = !lowGrav; toast(lowGrav ? T().low : T().lowOff); sfx('whoosh');
   }
@@ -295,15 +320,19 @@ function draw(dt) {
   if (shake > 0) g.translate(rnd(-shake, shake), rnd(-shake, shake));
   g.drawImage(room, 0, 0);
   for (const f of fx) if (f.puddle) { g.globalAlpha = Math.min(1, f.life); g.fillStyle = f.c; g.beginPath(); g.ellipse(f.x, f.y, f.s, f.s * 0.25, 0, 0, 7); g.fill(); g.globalAlpha = 1; }
-  for (const h of holes) { const r = (46 + Math.sin(performance.now() / 90) * 4) * Math.min(1, h.age / 0.45, (h.t + 0.05) / 0.5); const gr = g.createRadialGradient(h.x, h.y, 4, h.x, h.y, r * 2.2); gr.addColorStop(0, '#000'); gr.addColorStop(0.45, '#1a0a3a'); gr.addColorStop(1, '#5a2aa000'); g.fillStyle = gr; g.beginPath(); g.arc(h.x, h.y, r * 2.2, 0, 7); g.fill(); g.strokeStyle = '#b48aff88'; g.lineWidth = 3; for (let k = 0; k < 3; k++) { g.beginPath(); g.arc(h.x, h.y, r * (0.6 + k * 0.35), performance.now() / 200 + k, performance.now() / 200 + k + 3.5); g.stroke(); } }
+  for (const h of holes) if (h.T.id !== 'hole') drawSwirl(h);
+  for (const h of holes) if (h.T.id === 'hole') { const r = (46 + Math.sin(performance.now() / 90) * 4) * Math.min(1, h.age / 0.45, (h.t + 0.05) / 0.5); const gr = g.createRadialGradient(h.x, h.y, 4, h.x, h.y, r * 2.2); gr.addColorStop(0, '#000'); gr.addColorStop(0.45, '#1a0a3a'); gr.addColorStop(1, '#5a2aa000'); g.fillStyle = gr; g.beginPath(); g.arc(h.x, h.y, r * 2.2, 0, 7); g.fill(); g.strokeStyle = '#b48aff88'; g.lineWidth = 3; for (let k = 0; k < 3; k++) { g.beginPath(); g.arc(h.x, h.y, r * (0.6 + k * 0.35), performance.now() / 200 + k, performance.now() / 200 + k + 3.5); g.stroke(); } }
   // his shadow
   const cx = (b.p[8].x + b.p[9].x) / 2, low = Math.max(...b.p.map((p) => p.y));
   g.fillStyle = `rgba(0,0,0,${0.22 * Math.max(0.2, 1 - (FLOOR - low) / 300)})`; g.beginPath(); g.ellipse(cx, FLOOR + 4, 60, 10, 0, 0, 7); g.fill();
   drawDoll(b);
   for (const o of objs) { const up = FLOOR - o.y - o.r; if (up > 6) { const k = Math.max(0, 1 - up / 600); g.fillStyle = `rgba(0,0,0,${0.08 + 0.25 * k})`; g.beginPath(); g.ellipse(o.x, FLOOR + 4, o.r * (0.6 + k), o.r * 0.25 * (0.6 + k), 0, 0, 7); g.fill(); } }
   for (const o of objs) drawObj(o);
+  for (const r of rockets) { const p = doll.p[r.i], up = r.T.id === 'rocket' ? 0 : 38; emoji(r.T.icon, p.x + Math.sin(r.t * 9) * 3, p.y - up, r.T.id === 'rocket' ? 46 : 64, r.T.id === 'rocket' ? -Math.PI / 4 : Math.sin(r.t * 5) * 0.12, r.side < 0 ? 1 : -1); }
+  for (const w of winds) { const ex = w.dir > 0 ? 54 : W - 54; g.globalAlpha = Math.max(0, Math.min(1, w.age / 0.15, w.t / 0.25)); emoji(w.T.icon, ex, w.y, 96, 0, w.dir > 0 ? -1 : 1); g.globalAlpha = 1; }
+  for (const sw of swarms) for (const q of sw.bugs) emoji(sw.T.icon, q.x, q.y, 30, Math.max(-0.5, Math.min(0.5, q.vy * 0.05)), q.vx > 0 ? -1 : 1);
   for (const a of acts) drawAct(a);
-  for (const bo of bolts) { g.strokeStyle = '#fff8a0'; g.lineWidth = 7; g.shadowColor = '#ffe84a'; g.shadowBlur = 20; g.beginPath(); bo.pts.forEach(([x, y], k) => (k ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke(); g.lineWidth = 3; g.strokeStyle = '#fff'; g.stroke(); g.shadowBlur = 0; }
+  for (const bo of bolts) { g.strokeStyle = bo.c || '#fff8a0'; g.lineWidth = 7; g.shadowColor = bo.c || '#ffe84a'; g.shadowBlur = 20; g.beginPath(); bo.pts.forEach(([x, y], k) => (k ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke(); g.lineWidth = 3; g.strokeStyle = '#fff'; g.stroke(); g.shadowBlur = 0; }
   for (const f of fx) {
     if (f.puddle) continue;
     const k = f.life / f.max; g.globalAlpha = Math.max(0, Math.min(1, k * 1.5));
@@ -393,14 +422,47 @@ function drawObj(o) {
   if (t.id === 'anvil') { g.fillStyle = '#4a4f5a'; g.strokeStyle = '#22252b'; g.lineWidth = 3; g.beginPath(); g.moveTo(-34, -16); g.lineTo(30, -16); g.quadraticCurveTo(44, -14, 46, -6); g.lineTo(14, -2); g.lineTo(10, 10); g.lineTo(22, 22); g.lineTo(-24, 22); g.lineTo(-12, 10); g.lineTo(-16, 0); g.quadraticCurveTo(-34, -4, -34, -16); g.fill(); g.stroke(); }
   else if (t.id === 'bowl') { g.fillStyle = '#2a3a8a'; g.beginPath(); g.arc(0, 0, o.r, 0, 7); g.fill(); g.fillStyle = '#ffffff33'; g.beginPath(); g.arc(-8, -8, 8, 0, 7); g.fill(); g.fillStyle = '#111'; for (const [x, y] of [[4, -6], [10, -2], [6, 4]]) { g.beginPath(); g.arc(x, y, 3, 0, 7); g.fill(); } }
   else if (t.id === 'bomb') { g.fillStyle = '#222'; g.beginPath(); g.arc(0, 0, o.r, 0, 7); g.fill(); g.fillStyle = '#555'; g.fillRect(-6, -o.r - 6, 12, 8); g.strokeStyle = '#a87a3a'; g.lineWidth = 3; g.beginPath(); g.moveTo(0, -o.r - 6); g.quadraticCurveTo(8, -o.r - 16, 14, -o.r - 12); g.stroke(); g.fillStyle = '#ffffff44'; g.beginPath(); g.arc(-6, -6, 5, 0, 7); g.fill(); if (o.fuse < 0.6 && Math.floor(o.fuse * 12) % 2) { g.fillStyle = '#ff3a2a88'; g.beginPath(); g.arc(0, 0, o.r, 0, 7); g.fill(); } }
-  if (o.fuse != null) { g.restore(); g.save(); const n = Math.ceil(o.fuse), k = o.fuse % 1; g.font = `900 ${22 + k * 10}px "Arial Black", sans-serif`; g.textAlign = 'center'; g.lineWidth = 5; g.strokeStyle = '#2a1a0a'; g.fillStyle = n <= 1 ? '#ff4a2a' : '#fff'; g.strokeText(n, o.x, o.y - o.r - 26); g.fillText(n, o.x, o.y - o.r - 26); }
   else if (t.id === 'cracker') { g.fillStyle = '#e0342a'; g.fillRect(-7, -14, 14, 28); g.fillStyle = '#ffd24a'; g.fillRect(-7, -6, 14, 4); g.strokeStyle = '#555'; g.lineWidth = 2; g.beginPath(); g.moveTo(0, -14); g.lineTo(5, -22); g.stroke(); }
   else if (t.id === 'duck') { // a yellow rubber duck
     g.fillStyle = '#ffd23a'; g.strokeStyle = '#d89a10'; g.lineWidth = 2; g.beginPath(); g.ellipse(0, 4, 16, 11, 0, 0, 7); g.fill(); g.stroke();
     g.beginPath(); g.arc(-7, -8, 9, 0, 7); g.fill(); g.stroke(); g.fillStyle = '#ff8a1a'; g.beginPath(); g.moveTo(-15, -9); g.lineTo(-23, -6); g.lineTo(-15, -4); g.fill();
     g.fillStyle = '#2a1a0a'; g.beginPath(); g.arc(-9, -10, 1.8, 0, 7); g.fill(); g.fillStyle = '#ffe98a'; g.beginPath(); g.ellipse(5, 2, 7, 4, -0.4, 0, 7); g.fill(); }
-  else { g.font = `${o.r * 2.2}px serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(t.icon, 0, 2); }
+  else { g.font = `${o.r * 2.2}px serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; if (o.fuse != null && o.fuse < 0.6 && Math.floor(o.fuse * 12) % 2) g.filter = 'brightness(1.8)'; g.fillText(t.icon, 0, 2); g.filter = 'none'; }
   g.restore();
+  if (o.fuse != null) { const n = Math.ceil(o.fuse), k = o.fuse % 1; g.font = `900 ${22 + k * 10}px "Arial Black", sans-serif`; g.textAlign = 'center'; g.textBaseline = 'alphabetic'; g.lineWidth = 5; g.strokeStyle = '#2a1a0a'; g.fillStyle = n <= 1 ? '#ff4a2a' : '#fff'; g.strokeText(n, o.x, o.y - o.r - 26); g.fillText(n, o.x, o.y - o.r - 26); }
+}
+// the whirlpool, the magnet, the tornado, the galaxy: rings of their colour and the thing itself, turning
+function drawSwirl(h) {
+  const T0 = performance.now() / 1000, k = Math.max(0, Math.min(1, h.age / 0.45, (h.t + 0.05) / 0.5)), R = (h.T.R || 420) * 0.22 * k;
+  g.save(); g.globalAlpha = 0.75 * k; g.strokeStyle = h.T.c; g.lineWidth = 4;
+  for (let j = 0; j < 5; j++) { const a0 = T0 * (h.T.id === 'magnet' ? 0 : 4) + j * 1.25; g.beginPath(); if (h.T.id === 'magnet') g.arc(h.x, h.y, R * (0.3 + ((T0 * 0.9 + j / 5) % 1)), 0, 7); else g.arc(h.x, h.y, R * (0.35 + j * 0.16), a0, a0 + 2.6); g.stroke(); }
+  g.restore(); emoji(h.T.icon, h.x, h.y, 70 * k + 10, h.T.id === 'magnet' ? Math.sin(T0 * 20) * 0.06 : T0 * (h.T.id === 'tornado' ? 0 : 3));
+}
+// the other blows, drawn from what they are and the way they are swung
+function drawHit(a) {
+  const t = a.T, st = t.style || 'jab', k = a.t / a.dur, ic = t.icon;
+  g.save(); g.globalAlpha = k > 0.75 ? 1 - (k - 0.75) / 0.25 : 1;
+  if (st === 'jab' || st === 'poke') { // straight in from the side, and back
+    const x0 = st === 'jab' ? (a.side < 0 ? -40 : W + 40) : a.x + a.side * 150, out = a.t < a.at ? easeIn(a.t / a.at) : a.t < a.at + 0.06 ? 1 : 1 - ease((a.t - a.at - 0.06) / (a.dur - a.at - 0.06));
+    const gx = x0 + (a.x - a.side * 22 - x0) * out, sq = a.hit && a.t < a.at + 0.08 ? 0.8 : 1;
+    if (st === 'jab') { g.strokeStyle = '#ffffff99'; g.lineWidth = 5; for (const dy of [-16, 0, 16]) { g.beginPath(); g.moveTo(gx + a.side * 40, a.y + dy); g.lineTo(gx + a.side * (40 + 60 * out), a.y + dy); g.stroke(); } }
+    g.translate(gx, a.y); g.scale(sq * (a.side < 0 ? -1 : 1), 2 - sq); g.font = `${st === 'jab' ? 62 : 52}px serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(ic, 0, 0);
+  } else if (st === 'swing') { // round from behind, like the bat
+    const px = a.x + a.side * 110, py = a.y + 20, start = a.side < 0 ? -1.9 : -1.25, hitA = Math.atan2(a.y - py, a.x - px), end = hitA + (hitA - start) * 0.6;
+    const an = a.t < a.at ? start + (hitA - start) * easeIn(a.t / a.at) : hitA + (end - hitA) * ease(clamp01((a.t - a.at) / 0.12));
+    g.strokeStyle = '#ffffff88'; g.lineWidth = 16; g.beginPath(); g.arc(px, py, 104, Math.min(an, start + (an - start) * 0.4), Math.max(an, start + (an - start) * 0.4)); g.stroke();
+    g.translate(px + Math.cos(an) * 104, py + Math.sin(an) * 104); g.rotate(an + Math.PI / 2); g.font = '64px serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(ic, 0, 0);
+  } else if (st === 'smash') { // lifted up, held a moment, brought down
+    const L = 92, px = a.x + a.side * L, py = a.y + 8, base = Math.atan2(a.y - py, a.x - px), lift = a.side * 1.5;
+    const an = a.t < 0.2 ? base + lift * ease(a.t / 0.2) : a.t < a.at ? base + lift * (1 - easeIn((a.t - 0.2) / (a.at - 0.2))) : base - a.side * 0.05 * Math.sin((a.t - a.at) * 40) * (1 - k);
+    const sq = a.hit && a.t < a.at + 0.08 ? 0.85 : 1; g.translate(px + Math.cos(an) * L, py + Math.sin(an) * L); g.rotate(an + Math.PI / 2); g.scale(1 / sq, sq); g.font = '72px serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(ic, 0, 0);
+  } else { // slap: an arc across, with a blur behind
+    const px = a.x + a.side * 40, py = a.y + 130, r = 130, s0 = a.side < 0 ? -2.3 : -0.84, s1 = a.side < 0 ? -0.84 : -2.3, an = s0 + (s1 - s0) * easeIn(clamp01(k / (a.at / a.dur) * 0.8)), al = k > 0.7 ? 1 - (k - 0.7) / 0.3 : 1;
+    for (let j = 1; j <= 3; j++) { const aj = an - (s1 - s0) * 0.08 * j; g.globalAlpha = al * 0.25 / j; emoji(ic, px + Math.cos(aj) * r, py + Math.sin(aj) * r, 56, aj + Math.PI / 2, -a.side); }
+    g.globalAlpha = al; emoji(ic, px + Math.cos(an) * r, py + Math.sin(an) * r, 62, an + Math.PI / 2, -a.side);
+  }
+  g.restore();
+  if (a.hit && a.t < a.at + 0.11) burst(a.x, a.y, 1 - (a.t - a.at) / 0.11);
 }
 const ease = (k) => 1 - (1 - k) * (1 - k), easeIn = (k) => k * k, clamp01 = (k) => Math.max(0, Math.min(1, k));
 function emoji(ch, x, y, size, rot = 0, flip = 1) { g.save(); g.translate(x, y); g.rotate(rot); g.scale(flip, 1); g.font = `${size}px serif`; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(ch, 0, 0); g.restore(); }
@@ -439,7 +501,7 @@ function drawAct(a) {
     emoji('✋', a.x, H + 30 - up * 140, 80, rot);
   } else if (a.k === 'rocketIn') { // the rocket flies in and grabs on
     const p = doll.p[a.i], e = ease(clamp01(k)), x = a.x + (p.x - a.x) * e, y = a.y + (p.y - a.y) * e;
-    emoji('🚀', x, y, 46, Math.atan2(p.y - a.y, p.x - a.x) + Math.PI / 4);
+    emoji(a.icon, x, y, a.icon === '🚀' ? 46 : 64, a.icon === '🚀' ? Math.atan2(p.y - a.y, p.x - a.x) + Math.PI / 4 : 0, a.icon === '🚀' ? 1 : a.side < 0 ? -1 : 1);
     for (let j = 0; j < 2; j++) fx.push({ x: x - a.side * 18, y, vx: rnd(-1, 1), vy: rnd(-1, 1), life: 0.3, max: 0.3, c: pickOf(['#ffb02e', '#ff6a2a', '#bbb']), s: rnd(4, 8) });
   } else if (a.k === 'cloud') { // a storm cloud gathers, then strikes
     const grow = ease(clamp01(a.t / 0.22)), fade = k > 0.7 ? 1 - (k - 0.7) / 0.3 : 1, cx = a.x, cy = 70;
@@ -451,10 +513,14 @@ function drawAct(a) {
     const e = ease(clamp01(a.t / a.at)), fade = k > 0.6 ? 1 - (k - 0.6) / 0.4 : 1, ex = a.gx + (a.x - a.gx) * e, ey = a.gy + (a.y - a.gy) * e;
     const an = Math.atan2(a.y - a.gy, a.x - a.gx);
     g.save(); g.globalAlpha = fade; g.translate(a.gx, a.gy); g.rotate(an); g.fillStyle = '#5ab4f0'; g.strokeStyle = '#1a4a7a'; g.lineWidth = 3; g.beginPath(); g.roundRect(-30, -12, 50, 24, 8); g.fill(); g.stroke(); g.fillStyle = '#c8ecff'; g.fillRect(20, -6, 18, 12); g.fillStyle = '#1a4a7a'; g.fillRect(-18, 10, 12, 20); g.restore();
-    g.save(); g.globalAlpha = fade; g.strokeStyle = '#bfe8ff'; g.lineWidth = 10; g.shadowColor = '#7cd0ff'; g.shadowBlur = 18; g.beginPath();
+    g.save(); g.globalAlpha = fade; g.strokeStyle = a.c; g.lineWidth = 10; g.shadowColor = a.c; g.shadowBlur = 18; g.beginPath();
     for (let j = 0; j <= 20; j++) { const q = j / 20, xx = a.gx + (ex - a.gx) * q, yy = a.gy + (ey - a.gy) * q, w = Math.sin(q * 20 - a.t * 40) * 6; j ? g.lineTo(xx - Math.sin(an) * w, yy + Math.cos(an) * w) : g.moveTo(xx, yy); }
     g.stroke(); g.lineWidth = 3; g.strokeStyle = '#fff'; g.stroke(); g.restore();
-  }
+  } else if (a.k === 'launch') { // up out of the floor, then down again
+    const up = a.t < a.at ? ease(a.t / a.at) : 1 - easeIn(clamp01((a.t - a.at - 0.3) / (a.dur - a.at - 0.3)));
+    g.save(); g.beginPath(); g.rect(0, 0, W, FLOOR + 6); g.clip(); emoji(a.L.icon, a.x, FLOOR + 40 - up * 80, 84, Math.sin(a.t * 30) * 0.05 * (a.t < a.at)); g.restore();
+    if (!a.hit) { g.fillStyle = '#5a3a2244'; g.beginPath(); g.ellipse(a.x, FLOOR + 4, 50 * up + 10, 8, 0, 0, 7); g.fill(); }
+  } else if (a.T) drawHit(a);
 }
 // the comic flash where a blow lands
 function burst(x, y, k) { g.save(); g.globalAlpha = k; g.fillStyle = '#fff6a0'; g.strokeStyle = '#ff9a1a'; g.lineWidth = 3; g.beginPath(); for (let j = 0; j < 16; j++) { const an = j * Math.PI / 8, r = j % 2 ? 18 : 40 * (1.2 - k * 0.4); g.lineTo(x + Math.cos(an) * r, y + Math.sin(an) * r); } g.closePath(); g.fill(); g.stroke(); g.restore(); }
@@ -463,7 +529,7 @@ function cursor() {
   if (!pointer || (!pointer.down && (!pointer.mouse || performance.now() - (pointer.seen || 0) > 4000))) return;
   const x = pointer.x, y = pointer.y, t = TOOLS.find((k) => k.id === tool);
   if (tool === 'hand') { emoji(grab ? '✊' : '✋', x, y + 6, grab ? 44 : 40, grab ? 0 : -0.2); return; }
-  if (tool === 'feather') { emoji('🪶', x + 10, y - 14, 44, -0.6 + Math.sin(performance.now() / 70) * (pointer.down ? 0.45 : 0.1)); return; }
+  if (t.kind === 'tickle') { emoji(t.icon, x + 10, y - 14, 44, -0.6 + Math.sin(performance.now() / 70) * (pointer.down ? 0.45 : 0.1)); return; }
   if (pointer.mouse && !pointer.down && !t.icon.startsWith('<')) { g.globalAlpha = 0.55; emoji(t.icon, x + 22, y - 22, 30); g.globalAlpha = 1; }
 }
 function bubble(x, y, s) {
@@ -491,9 +557,19 @@ function tickTimers(dt) {
   for (const a of acts) { a.t += dt; if (!a.hit && a.t >= a.at) { a.hit = true; a.T ? strike(a) : a.go?.(); } }
   for (let i = acts.length - 1; i >= 0; i--) if (acts[i].t >= acts[i].dur) acts.splice(i, 1);
   for (const h of holes) h.age += dt;
+  for (const w of winds) { w.age += dt; w.t -= dt; const ex = w.dir > 0 ? 80 : W - 80; for (let k = 0; k < 3; k++) fx.push({ x: ex, y: w.y + rnd(-60, 60), vx: w.dir * rnd(10, 18), vy: rnd(-0.5, 0.5), life: 0.9, max: 0.9, c: w.T.c === 'fire' ? pickOf(FIRE) : w.T.c, s: rnd(3, 7), smoke: !!w.T.stink });
+    if (w.T.soot) b.soot = Math.min(1, b.soot + dt * 0.3); if (w.T.stink) setFace('ouch', 0.3); if (w.T.c === 'fire' && Math.random() < dt * 3) sfx('hiss'); }
+  for (let i = winds.length - 1; i >= 0; i--) if (winds[i].t <= 0) winds.splice(i, 1);
+  for (const sw of swarms) { sw.t -= dt; for (const q of sw.bugs) {
+    const p = b.p[q.ti], gone = sw.t <= 0, tx = gone ? (q.x < W / 2 ? -80 : W + 80) : p.x, ty = gone ? q.y - 40 : p.y;
+    q.vx += (tx - q.x) * 0.004 + rnd(-0.6, 0.6); q.vy += (ty - q.y) * 0.004 + rnd(-0.6, 0.6); q.vx *= 0.94; q.vy *= 0.94; q.x += q.vx; q.y += q.vy; q.cd -= dt;
+    if (!gone && q.cd <= 0 && Math.hypot(q.x - p.x, q.y - p.y) < p.r + 14) { q.cd = rnd(0.5, 1.3); q.ti = Math.floor(rnd(0, 14)); q.vx = rnd(-6, 6); q.vy = rnd(-6, -2);
+      if (sw.T.tickle) { S.coins += 1; coinPile += 1; setFace('laugh', 0.8); sfx('laugh'); say('tickle'); }
+      else { p.px -= rnd(-1, 1) * sw.T.power; p.py += sw.T.power * 0.5; hurt(q.ti, sw.T.power + 1); say('bug'); if (sw.T.snd) sfx(sw.T.snd); fx.push({ x: q.x, y: q.y, vx: 0, vy: -1, life: 0.3, max: 0.3, c: '#ffe14a', s: 6, star: true }); } } } }
+  for (let i = swarms.length - 1; i >= 0; i--) if (swarms[i].t < -2.5) swarms.splice(i, 1);
   for (const bo of bolts) bo.life -= dt; for (let i = bolts.length - 1; i >= 0; i--) if (bolts[i].life <= 0) bolts.splice(i, 1);
-  for (let i = rockets.length - 1; i >= 0; i--) if (rockets[i].t <= 0) { const p = b.p[rockets[i].i]; rockets.splice(i, 1); boom(p.x, p.y, 170, 26); }
-  for (let i = holes.length - 1; i >= 0; i--) { holes[i].t -= dt; if (holes[i].t <= 0) { const h = holes.splice(i, 1)[0]; boom(h.x, h.y, 260, 30); } else if (Math.min(...b.p.map((p) => Math.hypot(p.x - holes[i].x, p.y - holes[i].y))) < 60) { coinPile += 1; S.coins += 1; } }
+  for (let i = rockets.length - 1; i >= 0; i--) if (rockets[i].t <= 0) { const p = b.p[rockets[i].i], r = rockets.splice(i, 1)[0]; if ((r.T.blast ?? 170) > 0) boom(p.x, p.y, r.T.blast ?? 170, 26, r.T.trail); else { addText(p.x, p.y - 40, 'BYE!', '#ffffff', true); sfx('pop'); fx.push({ tool: r.T.icon, x: p.x, y: p.y - 38, vx: r.side * -6, vy: -5, life: 0.8, max: 0.8, rot: 0 }); } }
+  for (let i = holes.length - 1; i >= 0; i--) { holes[i].t -= dt; if (holes[i].t <= 0) { const h = holes.splice(i, 1)[0]; if (h.T.boom !== false) boom(h.x, h.y, h.T.id === 'galaxy' ? 340 : 260, h.T.id === 'galaxy' ? 40 : 30, h.T.id === 'galaxy' ? ['#b48aff', '#ffffff', '#7ad0ff'] : null); else sfx('whoosh'); } else if (Math.min(...b.p.map((p) => Math.hypot(p.x - holes[i].x, p.y - holes[i].y))) < 60) { coinPile += 1; S.coins += 1; } }
   for (const o of objs) if (!['anvil', 'cracker', 'duck'].includes(o.T.id)) o.a = (o.a || 0) + (o.spin || 0) + (o.x - o.px) / o.r; // round things roll
   b.faceT -= dt; if (b.faceT <= 0 && b.face !== 'calm') b.face = 'calm';
   b.blink -= dt; if (b.blink < -3 - Math.random() * 3) b.blink = 0.12;
@@ -502,9 +578,10 @@ function tickTimers(dt) {
   // coins pop up in little bunches
   coinT -= dt; if (coinPile > 0 && coinT <= 0) { addText(b.p[HEAD].x + rnd(-30, 30), b.p[HEAD].y - 40, `+${coinPile}`, '#ffd23a'); sfx('coin'); coinPile = 0; coinT = 0.25; updateCoins(); save(); }
   // tickling
-  if (tool === 'feather' && pointer?.down) {
+  const tk = TOOLS.find((k) => k.id === tool);
+  if (tk.kind === 'tickle' && pointer?.down) {
     const near = nearest(pointer.x, pointer.y, 30) >= 0, moving = Math.hypot(pointer.x - (pointer.lx ?? pointer.x), pointer.y - (pointer.ly ?? pointer.y)) > 1;
-    if (near && moving) { tickleT += dt; setFace('laugh', 0.5); if (tickleT > 0.3) { tickleT = 0; S.coins += 1; coinPile += 1; sfx('laugh'); say('tickle'); fx.push({ x: pointer.x, y: pointer.y, vx: rnd(-1, 1), vy: rnd(-2, 0), life: 0.6, max: 0.6, c: '#ffffff', s: 4 }); } }
+    if (near && moving) { tickleT += dt; setFace('laugh', 0.5); if (tickleT > (tk.rate || 0.3)) { tickleT = 0; S.coins += 1; coinPile += 1; sfx('laugh'); say('tickle'); fx.push({ x: pointer.x, y: pointer.y, vx: rnd(-1, 1), vy: rnd(-2, 0), life: 0.6, max: 0.6, c: '#ffffff', s: 4 }); } }
     pointer.lx = pointer.x; pointer.ly = pointer.y;
   }
   idle += dt; if (idle > 14) { idle = 0; say('idle', true); }
@@ -519,8 +596,11 @@ const up = () => { if (grab?.obj) { /* it keeps the speed it was moving at */ } 
 cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
 
 // ---------------------------------------------------------------- the toolbar, the shop
+// the toolbar: what you own, then the next few to buy, then the shop
 function toolbar() {
-  $('#tools').innerHTML = TOOLS.map((t) => { const own = S.own.includes(t.id); return `<button class="tool ${tool === t.id ? 'on' : ''} ${own ? '' : 'locked'}" data-tool="${t.id}" title="${tn(t)}"><span>${t.icon}</span><small>${own ? tn(t) : '🔒 ' + t.price}</small></button>`; }).join('');
+  const next = TOOLS.filter((t) => !S.own.includes(t.id)).sort((a, b) => a.price - b.price).slice(0, 3);
+  $('#tools').innerHTML = [...TOOLS.filter((t) => S.own.includes(t.id)), ...next].map((t) => { const own = S.own.includes(t.id); return `<button class="tool ${tool === t.id ? 'on' : ''} ${own ? '' : 'locked'}" data-tool="${t.id}" title="${tn(t)}"><span>${t.icon}</span><small>${own ? tn(t) : '🔒 ' + t.price}</small></button>`; }).join('') + `<button class="tool more" id="moreBtn"><span>🛒</span><small>${T().more}</small></button>`;
+  $('#tools .on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
 function updateCoins() { $('#coins').textContent = S.coins.toLocaleString(); }
 function labels() {
@@ -530,13 +610,15 @@ function labels() {
 }
 function toast(s) { const el = $('#toast'); el.textContent = s; el.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('show'), 1800); }
 function hideHint() { $('#hint').classList.add('gone'); }
+const SHELVES = ['hit', 'throw', 'drop', 'bomb', 'magic'];
 function shop(tab = 'tools') {
+  if (tab === 'tools') tab = SHELF(TOOLS.find((k) => k.id === tool));
   const t = T(), card = (x, own, on, price, kind) => `<div class="item ${own ? 'own' : ''}"><span class="ic">${x.icon}</span><b>${tn(x)}</b>${own
     ? `<button class="mini ${on ? 'on' : ''}" data-${kind}="${x.id}">${on ? (kind === 'wear' ? t.wearing : '✓') : kind === 'wear' ? t.wear : t.use}</button>`
     : `<button class="mini buy" data-buy="${kind}:${x.id}" ${S.coins < price ? 'disabled' : ''}>🪙 ${price}</button>${S.coins < price ? `<small>${t.need(price - S.coins)}</small>` : ''}`}</div>`;
   $('#dlgBody').innerHTML = `<h2>🛒 ${t.shop} <span class="cn">🪙 ${S.coins.toLocaleString()}</span></h2>
-    <div class="tabs"><button class="tab ${tab === 'tools' ? 'on' : ''}" data-tab="tools">${t.tools}</button><button class="tab ${tab === 'hats' ? 'on' : ''}" data-tab="hats">${t.hats}</button></div>
-    ${tab === 'tools' ? `<div class="grid">${TOOLS.map((x) => card(x, S.own.includes(x.id), tool === x.id, x.price, 'use')).join('')}</div>`
+    <div class="tabs">${SHELVES.map((k) => `<button class="tab ${tab === k ? 'on' : ''}" data-tab="${k}">${t.shelf[k]}</button>`).join('')}<button class="tab ${tab === 'hats' ? 'on' : ''}" data-tab="hats">${t.hats}</button></div>
+    ${tab !== 'hats' ? `<p class="have">${t.have(TOOLS.filter((x) => S.own.includes(x.id)).length, TOOLS.length)}</p><div class="grid">${TOOLS.filter((x) => SHELF(x) === tab).sort((a, b) => a.price - b.price).map((x) => card(x, S.own.includes(x.id), tool === x.id, x.price, 'use')).join('')}</div>`
       : `<div class="grid">${HATS.map((x) => card(x, S.hats.includes(x.id), S.hat === x.id, x.price, 'wear')).join('')}</div>
          <h3>${t.shirt}</h3><div class="shirts">${SHIRTS.map((c, i) => `<button class="sw ${S.shirt === i ? 'on' : ''}" data-shirt="${i}" style="background:${c}"></button>`).join('')}</div>`}`;
   $('#dlg').dataset.tab = tab;
@@ -545,12 +627,12 @@ function shop(tab = 'tools') {
 document.addEventListener('click', (e) => {
   const b = e.target.closest('button'); if (!b) return;
   if (b.dataset.tool) { const t = TOOLS.find((x) => x.id === b.dataset.tool); if (!S.own.includes(t.id)) return shop('tools'); if (t.kind === 'gravity') { lowGrav = !lowGrav; toast(lowGrav ? T().low : T().lowOff); } else tool = t.id; toolbar(); hideHint(); }
-  else if (b.id === 'shopBtn') shop('tools');
+  else if (b.id === 'shopBtn' || b.id === 'moreBtn') shop('tools');
   else if (b.id === 'standBtn') { standUp(false); doll.frozen = 0; sfx('whoosh'); }
   else if (b.id === 'cleanBtn') { doll.decals = []; doll.soot = 0; sfx('splat', 0.4); for (let k = 0; k < 20; k++) fx.push({ x: doll.p[HEAD].x + rnd(-40, 40), y: doll.p[HEAD].y + rnd(-40, 120), vx: rnd(-1, 1), vy: rnd(-2, 0), life: 0.8, max: 0.8, c: '#e8f6ff', s: rnd(4, 9) }); }
   else if (b.id === 'muteBtn') { setMute(!muted()); labels(); }
   else if (b.id === 'langBtn') { S.lang = S.lang === 'en' ? 'zh' : 'en'; save(); labels(); toolbar(); }
-  else if (b.dataset.tab) shop(b.dataset.tab);
+  else if (b.dataset.tab) { shop(b.dataset.tab); $('#dlg').scrollTop = 0; }
   else if (b.dataset.buy) {
     const [kind, id] = b.dataset.buy.split(':'), x = (kind === 'use' ? TOOLS : HATS).find((k) => k.id === id);
     if (S.coins < x.price) return;
@@ -570,4 +652,4 @@ doll = makeDoll(W / 2);
 labels(); toolbar(); updateCoins();
 requestAnimationFrame(frame);
 (async () => { try { cloud = await import('/save.js'); if (await cloud.pull(GAME, KEY)) { Object.assign(S, load()); labels(); toolbar(); updateCoins(); } } catch (e) { cloud = null; } })();
-window.BB = { S, get doll() { return doll; }, use, objs, acts, setTool: (t) => { tool = t; toolbar(); }, step };
+window.BB = { S, TOOLS, get doll() { return doll; }, use, objs, acts, winds, swarms, holes, rockets, setTool: (t) => { tool = t; toolbar(); }, step };

@@ -2,7 +2,7 @@
 
 類似 Kick the Buddy 的紓壓小遊戲：房間裡有一個布偶，挑一樣道具點他，他會被打飛、被番茄砸、被凍住、被火箭載上天花板……每一下都有金幣，金幣可以買更厲害的道具和帽子。卡通風格，沒有血腥。中文和英文都有。
 
-A stress-relief toy in the spirit of Kick the Buddy: a rag doll in a room and twenty tools to try on him. Every bump earns coins for more tools and hats. Cartoon only, no gore. Chinese and English.
+A stress-relief toy in the spirit of Kick the Buddy: a rag doll in a room and 220 tools to try on him. Every bump earns coins for more tools and hats. Cartoon only, no gore. Chinese and English.
 
 **線上玩：** https://ywchen0711.github.io/buddybash/
 
@@ -15,6 +15,18 @@ A stress-relief toy in the spirit of Kick the Buddy: a rag doll in a room and tw
 | 480～1250 | 🎳 保齡球、🪶 羽毛搔癢、🧨 鞭炮、鐵砧、⚡ 閃電、🧊 冰凍光線 |
 | 1500～3500 | 💣 炸彈、🚀 火箭、🌙 低重力、🕳️ 黑洞 |
 
+另外還有 **200 種** 新道具（`js/more.js`），商店分成五類：
+
+| 類別 | 例子 |
+|---|---|
+| 打擊（57） | 🍳 平底鍋、🐟 鹹魚、🩴 藍白拖、🪃 迴力鏢、🎸 吉他、🦖 暴龍、🐘 大象、🤖 機器人……有直拳、揮擊、砸下、戳、甩巴掌五種動作 |
+| 投擲（53） | 🍉 西瓜、🍕 披薩、🍜 拉麵、🎂 生日蛋糕、🦑 烏賊墨汁會砸開；🏀 籃球、🎱 撞球、🧱 磚頭、🎁 禮物會彈開 |
+| 從天而降（32） | 🎹 鋼琴、🚗 汽車、🛁 浴缸、🐄 乳牛、🗿 摩艾；🍬 糖果雨、🐸 青蛙雨、❄️ 大雪、💧 傾盆大雨 |
+| 爆炸（18） | 🎆 煙火、🎉 拉炮、🍾 香檳、🧪 試管、⏰ 鬧鐘、⌛ 沙漏、🌞 小太陽…… |
+| 特殊（40） | 🛸 飛碟綁架、🚁 直升機、🐉 飛龍；🌩️ 雷暴、🛰️ 衛星雷射、🌈 彩虹閃電；⛄ 雪人光線、🏔️ 冰河；🌀 漩渦、🧲 磁鐵、🌪️ 龍捲風、🌌 銀河；💨 一陣風、🌬️ 颱風、🐲 龍息、🦨 臭鼬；⛲ 噴泉、🐳 鯨魚噴水、🍄 彈跳蘑菇、🌋 火山；🐝 蜜蜂、🦟 蚊子、🦇 蝙蝠、🦋 蝴蝶；🐾 🦚 🌾 🖌️ 🐛 搔癢 |
+
+下面的工具列只放你擁有的道具，加上接下來最便宜的三樣和「更多道具」。
+
 裝扮：派對帽、蝴蝶結、棒球帽、墨鏡、八字鬍、牛仔帽、巫師帽、皇冠，還有八種衣服顏色。
 
 每樣道具都有動畫：拳擊手套裝在彈簧上從牆邊彈出來、巴掌甩過來、球棒揮一圈、鎚子舉高再砸下，打到的那一瞬間才算數；丟的東西由一隻手從下面拋出去，掉下來的東西地上會先出現影子，閃電前會先聚一朵烏雲，冰凍光線從槍口射出，火箭飛過來黏上他，炸彈頭上有倒數，黑洞會慢慢張開再闔上。
@@ -25,5 +37,6 @@ A stress-relief toy in the spirit of Kick the Buddy: a rag doll in a room and tw
 
 - `js/main.js`：Verlet 物理的布偶（14 個點、棍子相連，加上讓手腳不會折平的限制），站著時有一個姿勢彈簧，被打到一定力道就倒下；房間裡的物品、爆炸、黑洞、火箭；畫圖和介面
 - `js/items.js`：道具、帽子、中英文台詞
+- `js/more.js`：另外 200 種道具（資料：種類、動作、力道、顏色、音效）
 - `js/sfx.js`：用 Web Audio 合成的音效
 - 存檔在瀏覽器（也會同步到網站的雲端存檔）

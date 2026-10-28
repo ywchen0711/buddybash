@@ -40,6 +40,12 @@ const S = {
   buy: () => { [660, 880, 1100].forEach((f, i) => tone(f, i * 0.07, 0.15, 'triangle', 0.12)); },
   hole: () => { tone(300, 0, 1.5, 'sine', 0.15, 40); noise(0, 1.5, 0.1, 300); },
   tick: () => tone(1500, 0, 0.03, 'square', 0.03),
+  clang: (k) => { tone(1200, 0, 0.45, 'triangle', 0.12 * k, 1080); tone(1830, 0, 0.3, 'sine', 0.07 * k); noise(0, 0.05, 0.25 * k, 3000); },
+  honk: () => { tone(330, 0, 0.25, 'sawtooth', 0.1, 300); tone(415, 0, 0.25, 'square', 0.05, 400); },
+  boing: (k) => { tone(160, 0, 0.4, 'sine', 0.25 * k, 620); tone(320, 0.02, 0.3, 'triangle', 0.06 * k, 900); },
+  crunch: (k) => { noise(0, 0.12, 0.4 * k, 2200, 1.5, 'bandpass'); noise(0.05, 0.1, 0.3 * k, 1400); },
+  buzz: () => { tone(210, 0, 0.35, 'sawtooth', 0.035, 240); tone(213, 0, 0.35, 'sawtooth', 0.03, 236); },
+  wind: () => { noise(0, 1.3, 0.28, 520, 0.7, 'bandpass'); },
 };
 let last = {};
 export function sfx(name, k = 1) {
