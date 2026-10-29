@@ -3,7 +3,7 @@
 // drop (falls from the ceiling), bomb (lands and goes off), rocket, zap, freeze, tickle, hole, gravity (a switch),
 // wind, launch, swarm; and two hundred more of them in more.js
 import { MORE } from './more.js?v=3';
-import { HERO_TOOLS } from './heroes.js?v=2';
+import { HERO_TOOLS } from './heroes.js?v=3';
 export const TOOLS = [
   { id: 'hand', icon: '✋', kind: 'grab', price: 0, zh: '手', en: 'Hand' },
   { id: 'punch', icon: '🥊', kind: 'hit', power: 16, price: 0, zh: '拳擊手套', en: 'Boxing glove', snd: 'pow', word: 'POW!' },
