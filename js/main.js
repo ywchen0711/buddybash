@@ -2,6 +2,7 @@
 // a little spring that keeps him standing until he is knocked over, and coins for every bump that buy more tools.
 import { TOOLS, HATS, SHIRTS, WORDS, SHELF } from './items.js?v=5';
 import { heroEngine } from './heroes.js?v=2';
+import { sigEngine } from './signature.js?v=3';
 import { sfx, setMute, muted } from './sfx.js?v=3';
 
 const $ = (s) => document.querySelector(s);
@@ -82,6 +83,16 @@ const money = (n) => (n % 1e8 ? n.toLocaleString() : n >= 1e12 ? (S.lang === 'en
 const HERO = heroEngine({ doll: () => doll, dims: () => ({ W, H, FLOOR }), get g() { return g; }, fx, bolts, winds, holes, rockets, swarms, objs, boom: (...a) => boom(...a), hurt: (...a) => hurt(...a), addText: (...a) => addText(...a),
   sfx: (...a) => sfx(...a), setFace: (...a) => setFace(...a), say: (...a) => say(...a), emoji: (...a) => emoji(...a), limb: (...a) => limb(...a), bubble: (...a) => bubble(...a), boltPath: (...a) => boltPath(...a),
   tool: (id) => TOOLS.find((k) => k.id === id), lang: () => S.lang, shake: (n) => { shake = Math.max(shake, n); }, HEAD: 0, NECK: 1 });
+// every tool's own signature (js/signature.js): what flies off it, what it does to him for a while, something extra
+const later = []; // little things to do in a moment: {t, fn}
+const SIGN = sigEngine({ doll: () => doll, dims: () => ({ W, H, FLOOR }), get g() { return g; }, fx, objs, addText: (...a) => addText(...a), sfx: (...a) => sfx(...a), hurt: (...a) => hurt(...a),
+  setFace: (...a) => setFace(...a), say: (...a) => say(...a), emoji: (...a) => emoji(...a), shake: (n) => { shake = Math.max(shake, n); }, tool: (id) => TOOLS.find((k) => k.id === id),
+  coins: (n) => { S.coins += n; S.total += n; updateCoins(); save(); },
+  splat: (i, c, r) => { doll.decals.push({ i, ox: rnd(-6, 6), oy: rnd(-6, 6), r, c, wet: false, pts: blob() }); if (doll.decals.length > 50) doll.decals.shift(); },
+  // more hits: a hit tool swings again (a boomerang comes back); anything else lands again
+  redo: (id, n, back, x, y, i) => { const T = TOOLS.find((k) => k.id === id); for (let k = 1; k <= n; k++) {
+    if (T.kind === 'hit') { const b = doll, cx = (b.p[8].x + b.p[9].x) / 2, side = x < cx ? -1 : 1, [dur, at] = ACT[T.id] || STYLE[T.style] || STYLE.jab; acts.push({ k: T.id, T: back ? { ...T, word: S.lang === 'en' ? 'AGAIN!' : '又來了！' } : T, x, y, side: back ? -side : side, t: -0.38 * k, dur, at, hit: false, repeat: true }); }
+    else later.push({ t: 0.32 * k, fn: () => { const p = doll.p[i] || doll.p[2]; p.px -= rnd(-6, 6); p.py += 6; hurt(i, 9); sfx(T.snd || 'thump', 0.6); for (let m = 0; m < 5; m++) fx.push({ x: p.x, y: p.y, vx: rnd(-5, 5), vy: rnd(-6, -1), life: 0.8, max: 0.8, emo: T.icon, size: 22, rot: rnd(-2, 2), fall: true }); addText(p.x, p.y - 30, '×' + (k + 1), '#ffe14a', true); } }); } } });
 
 function say(kind, force) {
   const b = doll; if (!force && (b.sayCool > 0 || Math.random() < 0.45)) return;
@@ -113,6 +124,7 @@ function step() {
   for (const p of b.p) {
     const vx = (p.x - p.px) * 0.99, vy = (p.y - p.py) * 0.99;
     p.px = p.x; p.py = p.y; p.x += vx; p.y += vy + gr;
+    if (SIGN.float()) p.y -= gr * 1.15;
   }
   if (b.shock > 0) for (const p of b.p) { p.x += rnd(-2.5, 2.5); p.y += rnd(-2.5, 2.5); }
   // standing up, and staying up
@@ -125,7 +137,7 @@ function step() {
   for (const h of holes) { const R = h.T.R || 420, pull = h.T.pull || 1.1, lift = h.T.lift || 0; for (const p of [...b.p, ...objs]) { const dx = h.x - p.x, dy = h.y - p.y, d = Math.hypot(dx, dy); if (d < R && d > 4) { const f = pull * (1 - d / R); p.x += dx / d * f - (lift ? dy / d * f * 0.8 : 0); p.y += dy / d * f - (p.inv ? gr * 0.9 : 0) - lift * f; b.stand = 0; } } }
   // the wind pushes him (and everything loose) across the room
   for (const w of winds) { const f = w.T.f * Math.min(1, w.age / 0.2, w.t / 0.3); for (const p of b.p) p.x += w.dir * f * (0.7 + 0.6 * (p.y < FLOOR - 100)); for (const o of objs) o.x += w.dir * f * 1.4 / Math.sqrt(o.m); if (w.T.f >= 1 && w.age > 0.15) b.stand = 0; else b.stand = Math.max(0.3, b.stand - 0.01); }
-  if (grab?.doll != null) { const p = b.p[grab.doll]; p.x = pointer.x; p.y = pointer.y; b.stand = 0; b.rise = 0; }
+  if (grab?.doll != null && pointer) { const p = b.p[grab.doll]; p.x = pointer.x; p.y = pointer.y; b.stand = 0; b.rise = 0; }
   HERO.pin();
   // the sticks, several times over
   for (let it = 0; it < 8; it++) {
@@ -133,14 +145,14 @@ function step() {
     for (const [a, c, len, k] of b.soft) stick(b.p[a], b.p[c], len, k);
     for (const [a, c, min] of b.apart) { const P = b.p[a], Q = b.p[c], dx = Q.x - P.x, dy = Q.y - P.y, d = Math.hypot(dx, dy) || 1; if (d < min) { const f = (d - min) / d * 0.5; P.x += dx * f; P.y += dy * f; Q.x -= dx * f; Q.y -= dy * f; } }
     if (b.frozen > 0 && b.frozenD) for (let i = 0; i < 14; i++) for (let j = i + 1; j < 14; j++) stick(b.p[i], b.p[j], b.frozenD[i][j], 0.5);
-    if (grab?.doll != null) { const p = b.p[grab.doll]; p.x = pointer.x; p.y = pointer.y; }
+    if (grab?.doll != null && pointer) { const p = b.p[grab.doll]; p.x = pointer.x; p.y = pointer.y; }
     HERO.pin();
   }
   // walls, with a thump if he hits them hard
   for (let i = 0; i < b.p.length; i++) {
     const p = b.p[i], vx = p.x - p.px, vy = p.y - p.py;
     let hit = 0;
-    if (p.y > FLOOR - p.r) { p.y = FLOOR - p.r; hit = Math.max(hit, vy); p.py = p.y + vy * 0.35; p.px = p.x - vx * 0.82; }
+    if (p.y > FLOOR - p.r) { p.y = FLOOR - p.r; hit = Math.max(hit, vy); p.py = p.y + vy * (SIGN.bouncy() ? 0.92 : 0.35); p.px = p.x - vx * 0.82; if (SIGN.bouncy()) b.stand = 0; }
     if (p.y < p.r + 10) { p.y = p.r + 10; hit = Math.max(hit, -vy); p.py = p.y + vy * 0.4; }
     if (p.x < p.r + 10) { p.x = p.r + 10; hit = Math.max(hit, -vx); p.px = p.x + vx * 0.4; }
     if (p.x > W - p.r - 10) { p.x = W - p.r - 10; hit = Math.max(hit, vx); p.px = p.x + vx * 0.4; }
@@ -154,7 +166,7 @@ function step() {
     if (o.y > FLOOR - o.r) { const hit = vy; o.y = FLOOR - o.r; o.py = o.y + vy * 0.35; o.px = o.x - vx * 0.85; if (hit > 5 && o.T.splat) splatFloor(o); else if (hit > 6 && o.T.snd) sfx(o.T.snd, hit / 20); }
     if (o.x < o.r + 10) { o.x = o.r + 10; o.px = o.x + vx * 0.5; } if (o.x > W - o.r - 10) { o.x = W - o.r - 10; o.px = o.x + vx * 0.5; }
     if (o.y < o.r) { o.y = o.r; o.py = o.y + vy * 0.5; }
-    if (o.fuse != null) { o.fuse -= 1 / 60; if (Math.random() < 0.5) fx.push({ x: o.x + o.r * 0.6, y: o.y - o.r, vx: rnd(-1.5, 1.5), vy: rnd(-3, -1), life: 0.3, max: 0.3, c: '#ffd24a', s: 3 }); if (o.fuse <= 0) { o.dead = true; boom(o.x, o.y, o.T.blast, o.T.force, o.T.pal); } }
+    if (o.fuse != null) { o.fuse -= 1 / 60; if (Math.random() < 0.5) fx.push({ x: o.x + o.r * 0.6, y: o.y - o.r, vx: rnd(-1.5, 1.5), vy: rnd(-3, -1), life: 0.3, max: 0.3, c: '#ffd24a', s: 3 }); if (o.fuse <= 0) { o.dead = true; boom(o.x, o.y, o.T.blast, o.T.force, o.T.pal); const i = nearest(o.x, o.y, o.T.blast); if (i >= 0) SIGN.apply(o.T.id, o.x, o.y, i); } }
   }
   for (let i = 0; i < objs.length; i++) for (let j = i + 1; j < objs.length; j++) bump(objs[i], objs[j], false);
   for (const o of objs) if (!o.dead) for (let i = 0; i < b.p.length; i++) { if (bump(o, b.p[i], true, i)) break; }
@@ -173,6 +185,7 @@ function bump(a, p, isDoll, i) {
   if (d >= min || d === 0) return false;
   const nx = dx / d, ny = dy / d, ma = a.m, mb = isDoll ? 1 / p.inv : p.m;
   const rv = ((a.x - a.px) - (p.x - p.px)) * nx + ((a.y - a.py) - (p.y - p.py)) * ny; // closing speed
+  if (isDoll && rv > 0.5 && !a.signed && grab?.obj !== a) { a.signed = true; SIGN.apply(a.T.id, a.x, a.y, i); }
   if (isDoll && a.T.splat && rv > 3) { splat(a, i); return true; }
   const over = min - d, wa = mb / (ma + mb), wb = ma / (ma + mb);
   a.x -= nx * over * wa; a.y -= ny * over * wa; p.x += nx * over * wb; p.y += ny * over * wb;
@@ -231,7 +244,7 @@ function use(x, y) {
     return;
   }
   if (t.kind === 'throw') {
-    const sx = Math.max(60, Math.min(W - 60, x + rnd(-80, 80))), sy = H + 30, n = 24, gr = grav();
+    const sx = Math.max(60, Math.min(W - 60, x + rnd(-80, 80))), sy = FLOOR - 24, n = 24, gr = grav(); // from just above the floor (below it, the floor would stop it dead)
     acts.push({ k: 'toss', x: sx, y: H, t: 0, dur: 0.32, at: 0.1, hit: false, go: () => {
       const vx = (x - sx) / n, vy = (y - sy) / n - 0.5 * gr * n;
       objs.push({ x: sx, y: sy, px: sx - vx, py: sy - vy, r: t.r, m: t.m, T: t, spin: rnd(-0.2, 0.2), a: 0 }); sfx('whoosh');
@@ -242,7 +255,7 @@ function use(x, y) {
   if (t.kind === 'rocket') {
     const i = nearest(x, y, 60); if (i < 0) return;
     const side = Math.random() < 0.5 ? -1 : 1;
-    acts.push({ k: 'rocketIn', icon: t.icon, x: side < 0 ? -40 : W + 40, y: y - 140, side, i, t: 0, dur: 0.4, at: 0.4, hit: false, go: () => { rockets.push({ i, t: t.dur || 2.4, side, T: t }); sfx(t.id === 'heli' || t.id === 'ufo' ? 'wind' : 'rocket'); say('fly', true); setFace('scared', 2.4); } });
+    acts.push({ k: 'rocketIn', icon: t.icon, x: side < 0 ? -40 : W + 40, y: y - 140, side, i, t: 0, dur: 0.4, at: 0.4, hit: false, go: () => { rockets.push({ i, t: t.dur || 2.4, side, T: t }); SIGN.apply(t.id, b.p[i].x, b.p[i].y, i); sfx(t.id === 'heli' || t.id === 'ufo' ? 'wind' : 'rocket'); say('fly', true); setFace('scared', 2.4); } });
     setFace('scared', 0.6); sfx('whoosh');
     return;
   }
@@ -250,7 +263,7 @@ function use(x, y) {
     acts.push({ k: 'cloud', x, y, t: 0, dur: 0.7, at: 0.28, hit: false, go: () => {
       for (let n = 0; n < (t.n || 1); n++) bolts.push({ x, y, life: 0.35 + n * 0.06, c: t.c === 'rainbow' ? pickOf(['#ff4a4a', '#ffb02e', '#ffe14a', '#5ad04a', '#3a9aff', '#b06aff']) : t.c, pts: boltPath(x + (n ? rnd(-30, 30) : 0), y) }); sfx('zap'); fx.push({ x, y, life: 0.15, max: 0.15, flash: 120 });
       const i = nearest(x, y, 90);
-      if (i >= 0) { b.shock = 1.3; b.stand = 0; setFace('shock', 1.4); say('zap', true); hurt(i, t.dmg ?? 14); b.soot = Math.min(1, b.soot + 0.25); }
+      if (i >= 0) { b.shock = 1.3; b.stand = 0; setFace('shock', 1.4); say('zap', true); hurt(i, t.dmg ?? 14); b.soot = Math.min(1, b.soot + 0.25); SIGN.apply(t.id, x, y, i); }
     } });
     return;
   }
@@ -260,12 +273,13 @@ function use(x, y) {
       const i = nearest(x, y, 80);
       for (let k = 0; k < 12; k++) fx.push({ x: rnd(x - 30, x + 30), y: rnd(y - 30, y + 30), vx: rnd(-1, 1), vy: rnd(-1, 1), life: 0.6, max: 0.6, c: '#bfe8ff', s: rnd(3, 6) });
       if (i >= 0 && b.frozen <= 0) { b.frozen = t.dur || 5; b.stand = 0; b.rise = 0; b.frozenD = b.p.map((p) => b.p.map((q) => Math.hypot(p.x - q.x, p.y - q.y))); setFace('frozen', t.dur || 5); say('ice', true); sfx('freeze'); }
+      if (i >= 0) SIGN.apply(t.id, x, y, i);
     } });
     sfx('tick');
     return;
   }
   if (t.kind === 'wind') { // from the side you tap, across the room
-    const cx = (b.p[8].x + b.p[9].x) / 2; winds.push({ T: t, dir: x < cx ? 1 : -1, y, t: t.dur, age: 0 }); sfx('wind'); setFace('scared', t.dur);
+    const cx = (b.p[8].x + b.p[9].x) / 2; winds.push({ T: t, dir: x < cx ? 1 : -1, y, t: t.dur, age: 0 }); sfx('wind'); setFace('scared', t.dur); SIGN.apply(t.id, cx, b.p[2].y, 2);
     if (t.word) addText(x, y - 30, t.word, '#ffe14a', true); say(t.stink ? 'stink' : 'wind', true);
     return;
   }
@@ -273,13 +287,14 @@ function use(x, y) {
     acts.push({ k: 'launch', L: t, x, t: 0, dur: 1.1, at: 0.35, hit: false, go: () => {
       let low = -1; b.p.forEach((p, i) => { const k = 1 - Math.abs(p.x - x) / 170; if (k > 0) { p.py = p.y + t.up * (0.6 + 0.4 * k); p.px = p.x + rnd(-1, 1); low = low < 0 || p.y > b.p[low].y ? i : low; } });
       sfx(t.snd || 'whoosh'); shake = 8;
-      if (low >= 0) { b.stand = 0; b.rise = 0; hurt(low, t.up * 0.45); say('fly', true); setFace('scared', 1.5); if (t.wet) b.wet = 1; if (t.soot) b.soot = Math.min(1, b.soot + 0.5); }
+      if (low >= 0) { SIGN.apply(t.id, x, b.p[low].y, low); b.stand = 0; b.rise = 0; hurt(low, t.up * 0.45); say('fly', true); setFace('scared', 1.5); if (t.wet) b.wet = 1; if (t.soot) b.soot = Math.min(1, b.soot + 0.5); }
       for (let k = 0; k < 30; k++) fx.push({ x: x + rnd(-24, 24), y: FLOOR - 10, vx: rnd(-1.5, 1.5), vy: rnd(-16, -6), life: rnd(0.6, 1.2), max: 1.2, c: t.c === 'fire' ? pickOf(FIRE) : t.c, s: rnd(5, 11), fall: true });
     } }); sfx('tick');
     return;
   }
   if (t.kind === 'swarm') { // little things that fly in and nip him (or tickle him)
     if (swarms.length > 2) swarms.shift();
+    SIGN.apply(t.id, b.p[0].x, b.p[0].y, 0);
     const from = x < W / 2 ? -30 : W + 30;
     swarms.push({ T: t, t: t.dur, bugs: Array.from({ length: t.n }, () => ({ x: from, y: rnd(80, FLOOR - 80), vx: 0, vy: 0, ti: Math.floor(rnd(0, 14)), cd: rnd(0.6, 1.4) })) }); sfx(t.snd || 'buzz'); setFace('scared', 1);
     return;
@@ -299,6 +314,7 @@ function strike(a) {
     p.px -= dx * f; p.py -= dy * f;
     for (const [a, c] of b.sticks) { const o = a === i ? c : c === i ? a : -1; if (o >= 0) { b.p[o].px -= dx * f * 0.4; b.p[o].py -= dy * f * 0.4; } }
     sfx(t.snd, t.power / 20); hurt(i, t.power * 0.9); addText(x, y - 30, t.word, pickOf(['#ff4a4a', '#ff9a1a', '#3a7bd5']), true);
+    if (!a.repeat) SIGN.apply(t.id, x, y, i);
     if (t.down) for (let k = 0; k < 5; k++) fx.push({ x: p.x, y: p.y - p.r, vx: rnd(-3, 3), vy: rnd(-4, -1), life: 0.8, max: 0.8, c: '#ffe14a', s: 7, star: true });
     for (let k = 0; k < 8; k++) { const an = rnd(0, 6.3); fx.push({ x, y, vx: Math.cos(an) * 4, vy: Math.sin(an) * 4, life: 0.25, max: 0.25, c: '#fff', s: 3 }); }
     a.hitPart = i;
@@ -315,9 +331,9 @@ function use2(t, x, y) {
     objs.push({ x, y: Math.min(y, FLOOR - 40), px: x, py: Math.min(y, FLOOR - 40), r: t.r, m: t.m, T: t, fuse: t.fuse, a: 0, spin: 0 }); sfx('hiss');
     if (Math.min(...b.p.map((p) => Math.hypot(p.x - x, p.y - y))) < 250) { setFace('scared', t.fuse); say('boom'); }
   } else if (t.kind === 'hole') {
-    if (holes.length) return; holes.push({ x, y: Math.min(y, FLOOR - 60), t: t.dur || 4, age: 0, T: t }); sfx(t.id === 'tornado' || t.id === 'cyclone' ? 'wind' : 'hole'); setFace('scared', 4); say('fly', true);
+    if (holes.length) return; holes.push({ x, y: Math.min(y, FLOOR - 60), t: t.dur || 4, age: 0, T: t }); SIGN.apply(t.id, x, y, 2); sfx(t.id === 'tornado' || t.id === 'cyclone' ? 'wind' : 'hole'); setFace('scared', 4); say('fly', true);
   } else if (t.kind === 'gravity') {
-    lowGrav = !lowGrav; toast(lowGrav ? T().low : T().lowOff); sfx('whoosh');
+    lowGrav = !lowGrav; if (lowGrav) SIGN.apply('moon', b.p[0].x, b.p[0].y, 0); toast(lowGrav ? T().low : T().lowOff); sfx('whoosh');
   }
   if (objs.length > 45) objs.splice(0, objs.length - 45);
 }
@@ -335,13 +351,13 @@ function draw(dt) {
   // his shadow
   const cx = (b.p[8].x + b.p[9].x) / 2, low = Math.max(...b.p.map((p) => p.y));
   g.fillStyle = `rgba(0,0,0,${0.22 * Math.max(0.2, 1 - (FLOOR - low) / 300)})`; g.beginPath(); g.ellipse(cx, FLOOR + 4, 60, 10, 0, 0, 7); g.fill();
-  drawDoll(b);
+  const shaped = SIGN.shape(b); drawDoll(b); SIGN.over(b); if (shaped) g.restore();
   for (const o of objs) { const up = FLOOR - o.y - o.r; if (up > 6) { const k = Math.max(0, 1 - up / 600); g.fillStyle = `rgba(0,0,0,${0.08 + 0.25 * k})`; g.beginPath(); g.ellipse(o.x, FLOOR + 4, o.r * (0.6 + k), o.r * 0.25 * (0.6 + k), 0, 0, 7); g.fill(); } }
   for (const o of objs) drawObj(o);
   for (const r of rockets) { const p = doll.p[r.i], up = r.T.id === 'rocket' ? 0 : 38; emoji(r.T.icon, p.x + Math.sin(r.t * 9) * 3, p.y - up, r.T.id === 'rocket' ? 46 : 64, r.T.id === 'rocket' ? -Math.PI / 4 : Math.sin(r.t * 5) * 0.12, r.side < 0 ? 1 : -1); }
   for (const w of winds) { const ex = w.dir > 0 ? 54 : W - 54; g.globalAlpha = Math.max(0, Math.min(1, w.age / 0.15, w.t / 0.25)); emoji(w.T.icon, ex, w.y, 96, 0, w.dir > 0 ? -1 : 1); g.globalAlpha = 1; }
   for (const sw of swarms) for (const q of sw.bugs) emoji(sw.T.icon, q.x, q.y, 30, Math.max(-0.5, Math.min(0.5, q.vy * 0.05)), q.vx > 0 ? -1 : 1);
-  for (const a of acts) drawAct(a);
+  for (const a of acts) if (a.t >= 0) drawAct(a);
   HERO.draw();
   for (const bo of bolts) { g.strokeStyle = bo.c || '#fff8a0'; g.lineWidth = 7; g.shadowColor = bo.c || '#ffe84a'; g.shadowBlur = 20; g.beginPath(); bo.pts.forEach(([x, y], k) => (k ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke(); g.lineWidth = 3; g.strokeStyle = '#fff'; g.stroke(); g.shadowBlur = 0; }
   for (const f of fx) {
@@ -350,6 +366,12 @@ function draw(dt) {
     if (f.flash) { g.fillStyle = '#fff6c0'; g.beginPath(); g.arc(f.x, f.y, f.flash * (1.2 - k), 0, 7); g.fill(); }
     else if (f.tool) { g.font = '54px serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.save(); g.translate(f.x, f.y); g.rotate(f.rot); g.scale(1.3 - k * 0.5, 1.3 - k * 0.5); g.fillText(f.tool, 0, 0); g.restore(); }
     else if (f.star) { g.fillStyle = f.c; star(f.x, f.y, f.s); }
+    else if (f.emo) emoji(f.emo, f.x, f.y, f.size, f.rot);
+    else if (f.ring) { g.strokeStyle = f.ring; g.lineWidth = 8 * k; g.beginPath(); g.arc(f.x, f.y, f.r0 + (1 - k) * 150, 0, 7); g.stroke(); }
+    else if (f.screen) { g.globalAlpha = k * 0.45; g.fillStyle = f.screen; g.fillRect(-20, -20, W + 40, H + 40); }
+    else if (f.bubble) { g.strokeStyle = '#bfe8ff'; g.lineWidth = 2; g.beginPath(); g.arc(f.x, f.y, f.s, 0, 7); g.stroke(); g.fillStyle = '#ffffff99'; g.beginPath(); g.arc(f.x - f.s * 0.35, f.y - f.s * 0.35, f.s * 0.25, 0, 7); g.fill(); }
+    else if (f.conf) { g.fillStyle = f.c; g.save(); g.translate(f.x, f.y); g.rotate(f.life * 9); g.fillRect(-f.s, -f.s / 2, f.s * 2, f.s); g.restore(); }
+    else if (f.stinky) { g.strokeStyle = '#8ac83a'; g.lineWidth = 3; g.beginPath(); for (let j = 0; j < 8; j++) { const yy = f.y - j * 4; g.lineTo(f.x + Math.sin(j * 1.3 + f.life * 8) * 6, yy); } g.stroke(); }
     else { g.fillStyle = f.c; g.beginPath(); g.arc(f.x, f.y, f.smoke ? f.s * (1.6 - k * 0.6) : f.s * (f.shard ? 1 : k + 0.3), 0, 7); g.fill(); }
     g.globalAlpha = 1;
   }
@@ -362,7 +384,7 @@ function star(x, y, r) { g.beginPath(); for (let k = 0; k < 10; k++) { const a =
 function limb(a, c, w, col, edge) { g.lineCap = 'round'; g.strokeStyle = edge; g.lineWidth = w + 5; g.beginPath(); g.moveTo(a.x, a.y); g.lineTo(c.x, c.y); g.stroke(); g.strokeStyle = col; g.lineWidth = w; g.stroke(); }
 const SKIN = '#e8c48e', SKIN2 = '#a8804e';
 function drawDoll(b) {
-  const p = b.p, shirt = SHIRTS[S.shirt] || SHIRTS[0], ice = b.frozen > 0, xray = b.shock > 0 && Math.floor(performance.now() / 70) % 2;
+  const p = b.p, shirt = SIGN.paint() || SHIRTS[S.shirt] || SHIRTS[0], ice = b.frozen > 0, xray = b.shock > 0 && Math.floor(performance.now() / 70) % 2;
   if (xray) { // a cartoon x-ray flash
     g.fillStyle = '#10141c'; for (const q of p) { g.beginPath(); g.arc(q.x, q.y, q.r + 10, 0, 7); g.fill(); }
     for (const [a, c] of STICKS) limb(p[a], p[c], 5, '#f4f4f4', '#10141c');
@@ -391,7 +413,7 @@ const rot = (x, y, a) => [x * Math.cos(a) - y * Math.sin(a), x * Math.sin(a) + y
 function headAngle() { const h = doll.p[HEAD], n = doll.p[NECK]; return Math.atan2(h.y - n.y, h.x - n.x) + Math.PI / 2; }
 function face(b, H0, a) {
   const at = (x, y) => { const [dx, dy] = rot(x, y, a); return [H0.x + dx, H0.y + dy]; };
-  const f = b.blink > 0 && b.face === 'calm' ? 'blink' : b.face;
+  const f = (b.blink > 0 && b.face === 'calm') || b.face === 'sleep' ? 'blink' : b.face;
   g.strokeStyle = '#2a1a0a'; g.fillStyle = '#2a1a0a'; g.lineWidth = 3; g.lineCap = 'round';
   const line = (pts) => { g.beginPath(); pts.forEach(([x, y], k) => { const [X, Y] = at(x, y); k ? g.lineTo(X, Y) : g.moveTo(X, Y); }); g.stroke(); };
   for (const s of [-1, 1]) {
@@ -561,11 +583,12 @@ function frame(now) {
 function tickTimers(dt) {
   const b = doll;
   shake = Math.max(0, shake - dt * 40);
-  for (const f of fx) { f.life -= dt; if (f.vx != null) { f.x += f.vx; f.y += f.vy; if (f.fall) f.vy += 0.3; if (f.star || f.shard) f.vy += 0.15; } }
+  for (const f of fx) { f.life -= dt; if (f.emo && f.vx) f.rot += f.vx * 0.01; if (f.vx != null) { f.x += f.vx; f.y += f.vy; if (f.fall) f.vy += 0.3; if (f.star || f.shard) f.vy += 0.15; } }
   for (let i = fx.length - 1; i >= 0; i--) if (fx[i].life <= 0) fx.splice(i, 1);
   if (fx.length > 400) fx.splice(0, fx.length - 400);
   for (const t of texts) { t.life -= dt; t.y -= dt * 40; } for (let i = texts.length - 1; i >= 0; i--) if (texts[i].life <= 0) texts.splice(i, 1);
-  HERO.tick(dt);
+  HERO.tick(dt); SIGN.tick(dt);
+  for (const l of later) { l.t -= dt; if (l.t <= 0 && !l.done) { l.done = true; l.fn(); } } for (let i = later.length - 1; i >= 0; i--) if (later[i].done) later.splice(i, 1);
   for (const a of acts) { a.t += dt; if (!a.hit && a.t >= a.at) { a.hit = true; a.T ? strike(a) : a.go?.(); } }
   for (let i = acts.length - 1; i >= 0; i--) if (acts[i].t >= acts[i].dur) acts.splice(i, 1);
   for (const h of holes) h.age += dt;
@@ -593,7 +616,7 @@ function tickTimers(dt) {
   const tk = TOOLS.find((k) => k.id === tool);
   if (tk.kind === 'tickle' && pointer?.down) {
     const near = nearest(pointer.x, pointer.y, 30) >= 0, moving = Math.hypot(pointer.x - (pointer.lx ?? pointer.x), pointer.y - (pointer.ly ?? pointer.y)) > 1;
-    if (near && moving) { tickleT += dt; setFace('laugh', 0.5); if (tickleT > (tk.rate || 0.3)) { tickleT = 0; S.coins += 1; coinPile += 1; sfx('laugh'); say('tickle'); fx.push({ x: pointer.x, y: pointer.y, vx: rnd(-1, 1), vy: rnd(-2, 0), life: 0.6, max: 0.6, c: '#ffffff', s: 4 }); } }
+    if (near && moving) { tickleT += dt; setFace('laugh', 0.5); if (tickleT > (tk.rate || 0.3)) { tickleT = 0; SIGN.apply(tk.id, pointer.x, pointer.y, Math.max(0, nearest(pointer.x, pointer.y, 60)), { cool: 1.6 }); S.coins += 1; coinPile += 1; sfx('laugh'); say('tickle'); fx.push({ x: pointer.x, y: pointer.y, vx: rnd(-1, 1), vy: rnd(-2, 0), life: 0.6, max: 0.6, c: '#ffffff', s: 4 }); } }
     pointer.lx = pointer.x; pointer.ly = pointer.y;
   }
   idle += dt; if (idle > 14) { idle = 0; say('idle', true); }
@@ -604,7 +627,7 @@ function toWorld(e) { const r = cv.getBoundingClientRect(); return { x: (e.clien
 cv.addEventListener('pointerdown', (e) => { cv.setPointerCapture(e.pointerId); const w = toWorld(e); pointer = { ...w, down: true, mouse: e.pointerType === 'mouse', seen: performance.now() }; hideHint(); use(w.x, w.y); });
 cv.addEventListener('pointermove', (e) => { const w = toWorld(e); if (pointer) { pointer.x = w.x; pointer.y = w.y; } else pointer = { ...w, down: false }; pointer.mouse = e.pointerType === 'mouse'; pointer.seen = performance.now(); });
 cv.addEventListener('pointerleave', () => { if (pointer && !pointer.down) pointer.seen = 0; });
-const up = () => { if (grab?.obj) { /* it keeps the speed it was moving at */ } grab = null; if (pointer) pointer.down = false; };
+const up = () => { if (grab?.obj) { /* it keeps the speed it was moving at */ } if (grab?.doll != null) { const p = doll.p[grab.doll]; if (Math.hypot(p.x - p.px, p.y - p.py) > 8) SIGN.apply('hand', p.x, p.y, grab.doll); } grab = null; if (pointer) pointer.down = false; };
 cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
 
 // ---------------------------------------------------------------- the toolbar, the shop
@@ -664,4 +687,4 @@ doll = makeDoll(W / 2);
 labels(); toolbar(); updateCoins();
 requestAnimationFrame(frame);
 (async () => { try { cloud = await import('/save.js'); if (await cloud.pull(GAME, KEY)) { Object.assign(S, load()); labels(); toolbar(); updateCoins(); } } catch (e) { cloud = null; } })();
-window.BB = { S, HERO, TOOLS, get doll() { return doll; }, use, objs, acts, winds, swarms, holes, rockets, setTool: (t) => { tool = t; toolbar(); }, step };
+window.BB = { S, HERO, SIGN, TOOLS, get doll() { return doll; }, use, objs, acts, winds, swarms, holes, rockets, setTool: (t) => { tool = t; toolbar(); }, step };
