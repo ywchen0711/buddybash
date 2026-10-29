@@ -1,6 +1,7 @@
 // 出氣布偶 / Buddy Bash: a rag doll in a room and a box of things to do to him. Verlet physics (points and sticks),
 // a little spring that keeps him standing until he is knocked over, and coins for every bump that buy more tools.
-import { TOOLS, HATS, SHIRTS, WORDS, SHELF } from './items.js?v=3';
+import { TOOLS, HATS, SHIRTS, WORDS, SHELF } from './items.js?v=4';
+import { heroEngine } from './heroes.js?v=1';
 import { sfx, setMute, muted } from './sfx.js?v=3';
 
 const $ = (s) => document.querySelector(s);
@@ -75,6 +76,12 @@ const STYLE = { jab: [0.36, 0.12], poke: [0.3, 0.1], swing: [0.42, 0.17], smash:
 const FIRE = ['#ffb02e', '#ff6a2a', '#ffe14a', '#ff3a1a'];
 let GRAV = 0.55, lowGrav = false, shake = 0, grab = null, pointer = null, tool = 'hand', idle = 0, tickleT = 0, coinPile = 0, coinT = 0;
 const grav = () => GRAV * (lowGrav ? 0.18 : 1);
+// prices so large they are better in words: 1 兆 / 1 trillion
+const money = (n) => (n >= 1e12 ? (S.lang === 'en' ? `${n / 1e12} trillion` : `${n / 1e12} 兆`) : n >= 1e8 && S.lang !== 'en' ? `${n / 1e8} 億` : n.toLocaleString());
+// the superheroes (js/heroes.js), given what they need of the room and the buddy
+const HERO = heroEngine({ doll: () => doll, dims: () => ({ W, H, FLOOR }), get g() { return g; }, fx, bolts, winds, holes, rockets, swarms, objs, boom: (...a) => boom(...a), hurt: (...a) => hurt(...a), addText: (...a) => addText(...a),
+  sfx: (...a) => sfx(...a), setFace: (...a) => setFace(...a), say: (...a) => say(...a), emoji: (...a) => emoji(...a), limb: (...a) => limb(...a), bubble: (...a) => bubble(...a), boltPath: (...a) => boltPath(...a),
+  tool: (id) => TOOLS.find((k) => k.id === id), lang: () => S.lang, shake: (n) => { shake = Math.max(shake, n); }, HEAD: 0, NECK: 1 });
 
 function say(kind, force) {
   const b = doll; if (!force && (b.sayCool > 0 || Math.random() < 0.45)) return;
@@ -119,6 +126,7 @@ function step() {
   // the wind pushes him (and everything loose) across the room
   for (const w of winds) { const f = w.T.f * Math.min(1, w.age / 0.2, w.t / 0.3); for (const p of b.p) p.x += w.dir * f * (0.7 + 0.6 * (p.y < FLOOR - 100)); for (const o of objs) o.x += w.dir * f * 1.4 / Math.sqrt(o.m); if (w.T.f >= 1 && w.age > 0.15) b.stand = 0; else b.stand = Math.max(0.3, b.stand - 0.01); }
   if (grab?.doll != null) { const p = b.p[grab.doll]; p.x = pointer.x; p.y = pointer.y; b.stand = 0; b.rise = 0; }
+  HERO.pin();
   // the sticks, several times over
   for (let it = 0; it < 8; it++) {
     for (const [a, c, len] of b.sticks) stick(b.p[a], b.p[c], len, 1);
@@ -126,6 +134,7 @@ function step() {
     for (const [a, c, min] of b.apart) { const P = b.p[a], Q = b.p[c], dx = Q.x - P.x, dy = Q.y - P.y, d = Math.hypot(dx, dy) || 1; if (d < min) { const f = (d - min) / d * 0.5; P.x += dx * f; P.y += dy * f; Q.x -= dx * f; Q.y -= dy * f; } }
     if (b.frozen > 0 && b.frozenD) for (let i = 0; i < 14; i++) for (let j = i + 1; j < 14; j++) stick(b.p[i], b.p[j], b.frozenD[i][j], 0.5);
     if (grab?.doll != null) { const p = b.p[grab.doll]; p.x = pointer.x; p.y = pointer.y; }
+    HERO.pin();
   }
   // walls, with a thump if he hits them hard
   for (let i = 0; i < b.p.length; i++) {
@@ -214,6 +223,7 @@ function use(x, y) {
     return;
   }
   if (['drop', 'bomb', 'hole', 'gravity'].includes(t.kind)) return use2(t, x, y);
+  if (t.kind === 'hero') { if (HERO.active) toast(S.lang === 'en' ? 'A hero is already here!' : '英雄正在出招中！'); else HERO.start(t); return; }
   if (t.kind === 'hit') {
     // it comes in from the side away from him, so it pushes him the other way
     const cx = (b.p[8].x + b.p[9].x) / 2, side = x < cx ? -1 : 1;
@@ -332,6 +342,7 @@ function draw(dt) {
   for (const w of winds) { const ex = w.dir > 0 ? 54 : W - 54; g.globalAlpha = Math.max(0, Math.min(1, w.age / 0.15, w.t / 0.25)); emoji(w.T.icon, ex, w.y, 96, 0, w.dir > 0 ? -1 : 1); g.globalAlpha = 1; }
   for (const sw of swarms) for (const q of sw.bugs) emoji(sw.T.icon, q.x, q.y, 30, Math.max(-0.5, Math.min(0.5, q.vy * 0.05)), q.vx > 0 ? -1 : 1);
   for (const a of acts) drawAct(a);
+  HERO.draw();
   for (const bo of bolts) { g.strokeStyle = bo.c || '#fff8a0'; g.lineWidth = 7; g.shadowColor = bo.c || '#ffe84a'; g.shadowBlur = 20; g.beginPath(); bo.pts.forEach(([x, y], k) => (k ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke(); g.lineWidth = 3; g.strokeStyle = '#fff'; g.stroke(); g.shadowBlur = 0; }
   for (const f of fx) {
     if (f.puddle) continue;
@@ -554,6 +565,7 @@ function tickTimers(dt) {
   for (let i = fx.length - 1; i >= 0; i--) if (fx[i].life <= 0) fx.splice(i, 1);
   if (fx.length > 400) fx.splice(0, fx.length - 400);
   for (const t of texts) { t.life -= dt; t.y -= dt * 40; } for (let i = texts.length - 1; i >= 0; i--) if (texts[i].life <= 0) texts.splice(i, 1);
+  HERO.tick(dt);
   for (const a of acts) { a.t += dt; if (!a.hit && a.t >= a.at) { a.hit = true; a.T ? strike(a) : a.go?.(); } }
   for (let i = acts.length - 1; i >= 0; i--) if (acts[i].t >= acts[i].dur) acts.splice(i, 1);
   for (const h of holes) h.age += dt;
@@ -599,7 +611,7 @@ cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
 // the toolbar: what you own, then the next few to buy, then the shop
 function toolbar() {
   const next = TOOLS.filter((t) => !S.own.includes(t.id)).sort((a, b) => a.price - b.price).slice(0, 3);
-  $('#tools').innerHTML = [...TOOLS.filter((t) => S.own.includes(t.id)), ...next].map((t) => { const own = S.own.includes(t.id); return `<button class="tool ${tool === t.id ? 'on' : ''} ${own ? '' : 'locked'}" data-tool="${t.id}" title="${tn(t)}"><span>${t.icon}</span><small>${own ? tn(t) : '🔒 ' + t.price}</small></button>`; }).join('') + `<button class="tool more" id="moreBtn"><span>🛒</span><small>${T().more}</small></button>`;
+  $('#tools').innerHTML = [...TOOLS.filter((t) => S.own.includes(t.id)), ...next].map((t) => { const own = S.own.includes(t.id); return `<button class="tool ${tool === t.id ? 'on' : ''} ${own ? '' : 'locked'}" data-tool="${t.id}" title="${tn(t)}"><span>${t.icon}</span><small>${own ? tn(t) : '🔒 ' + money(t.price)}</small></button>`; }).join('') + `<button class="tool more" id="moreBtn"><span>🛒</span><small>${T().more}</small></button>`;
   $('#tools .on')?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
 function updateCoins() { $('#coins').textContent = S.coins.toLocaleString(); }
@@ -610,12 +622,12 @@ function labels() {
 }
 function toast(s) { const el = $('#toast'); el.textContent = s; el.classList.add('show'); clearTimeout(toast.t); toast.t = setTimeout(() => el.classList.remove('show'), 1800); }
 function hideHint() { $('#hint').classList.add('gone'); }
-const SHELVES = ['hit', 'throw', 'drop', 'bomb', 'magic'];
+const SHELVES = ['hit', 'throw', 'drop', 'bomb', 'magic', 'hero'];
 function shop(tab = 'tools') {
   if (tab === 'tools') tab = SHELF(TOOLS.find((k) => k.id === tool));
   const t = T(), card = (x, own, on, price, kind) => `<div class="item ${own ? 'own' : ''}"><span class="ic">${x.icon}</span><b>${tn(x)}</b>${own
     ? `<button class="mini ${on ? 'on' : ''}" data-${kind}="${x.id}">${on ? (kind === 'wear' ? t.wearing : '✓') : kind === 'wear' ? t.wear : t.use}</button>`
-    : `<button class="mini buy" data-buy="${kind}:${x.id}" ${S.coins < price ? 'disabled' : ''}>🪙 ${price}</button>${S.coins < price ? `<small>${t.need(price - S.coins)}</small>` : ''}`}</div>`;
+    : `<button class="mini buy" data-buy="${kind}:${x.id}" ${S.coins < price ? 'disabled' : ''}>🪙 ${money(price)}</button>${S.coins < price ? `<small>${t.need(money(price - S.coins))}</small>` : ''}`}</div>`;
   $('#dlgBody').innerHTML = `<h2>🛒 ${t.shop} <span class="cn">🪙 ${S.coins.toLocaleString()}</span></h2>
     <div class="tabs">${SHELVES.map((k) => `<button class="tab ${tab === k ? 'on' : ''}" data-tab="${k}">${t.shelf[k]}</button>`).join('')}<button class="tab ${tab === 'hats' ? 'on' : ''}" data-tab="hats">${t.hats}</button></div>
     ${tab !== 'hats' ? `<p class="have">${t.have(TOOLS.filter((x) => S.own.includes(x.id)).length, TOOLS.length)}</p><div class="grid">${TOOLS.filter((x) => SHELF(x) === tab).sort((a, b) => a.price - b.price).map((x) => card(x, S.own.includes(x.id), tool === x.id, x.price, 'use')).join('')}</div>`
@@ -652,4 +664,4 @@ doll = makeDoll(W / 2);
 labels(); toolbar(); updateCoins();
 requestAnimationFrame(frame);
 (async () => { try { cloud = await import('/save.js'); if (await cloud.pull(GAME, KEY)) { Object.assign(S, load()); labels(); toolbar(); updateCoins(); } } catch (e) { cloud = null; } })();
-window.BB = { S, TOOLS, get doll() { return doll; }, use, objs, acts, winds, swarms, holes, rockets, setTool: (t) => { tool = t; toolbar(); }, step };
+window.BB = { S, HERO, TOOLS, get doll() { return doll; }, use, objs, acts, winds, swarms, holes, rockets, setTool: (t) => { tool = t; toolbar(); }, step };
