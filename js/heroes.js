@@ -1,4 +1,4 @@
-// 超級英雄 Superheroes: four tools at a trillion coins each. Each brings a hero of the family flying in — 疾速喬許 Speed
+// 超級英雄 Superheroes: four tools at a billion coins each. Each brings a hero of the family flying in — 疾速喬許 Speed
 // Josh, 火箭賈斯柏 Rocket Jasper, 程式傑夫 Code Jeff, 星光艾琳 Star Erin — who does ten of his or her moves on the buddy,
 // picked at random (never the same twice in a row), then strikes a pose and flies off.
 // A move is a kind and its numbers; the kinds:
@@ -7,10 +7,10 @@
 //   R), quake (dive into the floor: he is thrown up), tornado (a tool's whirl), wind (a tool's blast), meteor (things
 //   rain down: icon, n), swarm (icon, n), rocket (strapped to a rocket), freeze
 export const HERO_TOOLS = [
-  { id: 'josh', icon: '⚡', kind: 'hero', price: 1e12, zh: '喬許', en: 'Josh', hero: 'josh' },
-  { id: 'jasper', icon: '🚀', kind: 'hero', price: 1e12, zh: '賈斯柏', en: 'Jasper', hero: 'jasper' },
-  { id: 'jeff', icon: '💻', kind: 'hero', price: 1e12, zh: '傑夫', en: 'Jeff', hero: 'jeff' },
-  { id: 'erin', icon: '⭐', kind: 'hero', price: 1e12, zh: '艾琳', en: 'Erin', hero: 'erin' },
+  { id: 'josh', icon: '⚡', kind: 'hero', price: 1e9, zh: '喬許', en: 'Josh', hero: 'josh' },
+  { id: 'jasper', icon: '🚀', kind: 'hero', price: 1e9, zh: '賈斯柏', en: 'Jasper', hero: 'jasper' },
+  { id: 'jeff', icon: '💻', kind: 'hero', price: 1e9, zh: '傑夫', en: 'Jeff', hero: 'jeff' },
+  { id: 'erin', icon: '⭐', kind: 'hero', price: 1e9, zh: '艾琳', en: 'Erin', hero: 'erin' },
 ];
 const HEROES = {
   josh: { zh: '疾速喬許', en: 'Speed Josh', suit: '#1f5fd6', suit2: '#16409a', acc: '#ffd23a', cape: '#ffd23a', mark: '⚡', hair: '#1a1210', style: 'spiky', size: 0.95,

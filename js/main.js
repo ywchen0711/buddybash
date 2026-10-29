@@ -1,7 +1,7 @@
 // 出氣布偶 / Buddy Bash: a rag doll in a room and a box of things to do to him. Verlet physics (points and sticks),
 // a little spring that keeps him standing until he is knocked over, and coins for every bump that buy more tools.
-import { TOOLS, HATS, SHIRTS, WORDS, SHELF } from './items.js?v=4';
-import { heroEngine } from './heroes.js?v=1';
+import { TOOLS, HATS, SHIRTS, WORDS, SHELF } from './items.js?v=5';
+import { heroEngine } from './heroes.js?v=2';
 import { sfx, setMute, muted } from './sfx.js?v=3';
 
 const $ = (s) => document.querySelector(s);
@@ -76,8 +76,8 @@ const STYLE = { jab: [0.36, 0.12], poke: [0.3, 0.1], swing: [0.42, 0.17], smash:
 const FIRE = ['#ffb02e', '#ff6a2a', '#ffe14a', '#ff3a1a'];
 let GRAV = 0.55, lowGrav = false, shake = 0, grab = null, pointer = null, tool = 'hand', idle = 0, tickleT = 0, coinPile = 0, coinT = 0;
 const grav = () => GRAV * (lowGrav ? 0.18 : 1);
-// prices so large they are better in words: 1 兆 / 1 trillion
-const money = (n) => (n >= 1e12 ? (S.lang === 'en' ? `${n / 1e12} trillion` : `${n / 1e12} 兆`) : n >= 1e8 && S.lang !== 'en' ? `${n / 1e8} 億` : n.toLocaleString());
+// round prices so large they are better in words: 10 億 / 1 billion (other amounts exactly)
+const money = (n) => (n % 1e8 ? n.toLocaleString() : n >= 1e12 ? (S.lang === 'en' ? `${n / 1e12} trillion` : `${n / 1e12} 兆`) : n >= 1e9 && S.lang === 'en' ? `${n / 1e9} billion` : n >= 1e8 && S.lang !== 'en' ? `${n / 1e8} 億` : n.toLocaleString());
 // the superheroes (js/heroes.js), given what they need of the room and the buddy
 const HERO = heroEngine({ doll: () => doll, dims: () => ({ W, H, FLOOR }), get g() { return g; }, fx, bolts, winds, holes, rockets, swarms, objs, boom: (...a) => boom(...a), hurt: (...a) => hurt(...a), addText: (...a) => addText(...a),
   sfx: (...a) => sfx(...a), setFace: (...a) => setFace(...a), say: (...a) => say(...a), emoji: (...a) => emoji(...a), limb: (...a) => limb(...a), bubble: (...a) => bubble(...a), boltPath: (...a) => boltPath(...a),
